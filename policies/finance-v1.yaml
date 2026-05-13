@@ -1,0 +1,37 @@
+name: finance-v1
+version: "1.3.0"
+rules:
+  # ──────────────────────────────────────────────────────────────────────
+  # Credit card numbers (case-insensitive at the engine level — pattern works
+  # even though the shadow text is lowercased). The Luhn check eliminates the
+  # vast majority of false positives (e.g. 16-digit transaction IDs).
+  # ──────────────────────────────────────────────────────────────────────
+  - id: credit-card
+    pattern: '\b(?:\d[ -]*?){13,19}\b'
+    action: deny
+    score: 1.0
+    validator: luhn
+
+  # Polish IBAN ("PL" + 26 digits). After shadow normalization the literal
+  # becomes lowercase "pl" — the (?i) wrapper compiled into every rule keeps
+  # the human-readable form valid. The mod-97 validator drops false positives.
+  - id: iban-pl
+    pattern: 'PL[0-9]{26}'
+    action: deny
+    score: 1.0
+    validator: iban
+
+  # Generic IBAN (15-34 char ISO-13616). Mod-97 check enforced.
+  - id: iban-generic
+    pattern: '\b[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}\b'
+    action: review
+    score: 0.7
+    validator: iban
+
+  # SWIFT/BIC, only active when the context indicates a finance workload.
+  - id: swift-code
+    pattern: '\b[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?\b'
+    action: review
+    score: 0.6
+    conditions:
+      context: 'Finance'

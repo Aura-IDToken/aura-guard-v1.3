@@ -1,0 +1,24 @@
+services:
+  aura-guard:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: aura-guard:1.3
+    container_name: aura-guard
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      AURA_BIND: "0.0.0.0:8080"
+      AURA_API_KEY: "${AURA_API_KEY:?AURA_API_KEY is required}"
+      AURA_POLICIES_DIR: "/app/policies"
+      AURA_AUDIT_LOG_PATH: "/app/logs/audit.jsonl"
+      AURA_LOG: "info"
+    volumes:
+      - ../policies:/app/policies:ro
+      - ../logs:/app/logs
+    healthcheck:
+      test: ["CMD", "/app/aura-guard", "--help"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

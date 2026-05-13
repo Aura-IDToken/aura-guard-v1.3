@@ -1,0 +1,20 @@
+name: hr-bias-v1
+version: "1.3.0"
+rules:
+  # Age-based bias triggers (Polish + English forms).
+  - id: age-discrimination
+    pattern: '\b(za\s+stary|za\s+stara|za\s+mlody|too\s+old|too\s+young|over\s+50|under\s+25)\b'
+    action: deny
+    score: 1.0
+
+  # Gender / family status bias.
+  - id: gender-family-bias
+    pattern: '\b(matka|ojciec|w\s+ciazy|pregnant|maternity|paternity)\b'
+    action: review
+    score: 0.7
+
+  # Disability / health-status bias.
+  - id: disability-bias
+    pattern: '\b(disabled|niepelnosprawn|niepełnosprawn|invalid|kalek)\b'
+    action: review
+    score: 0.7

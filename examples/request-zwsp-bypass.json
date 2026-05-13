@@ -1,0 +1,8 @@
+{
+  "context": "Bypass-Attempt-via-ZWSP",
+  "policy_set": "finance-v1",
+  "payload": {
+    "prompt": "Card 4111\u200B-1111\u200B-1111\u200B-1111 please.",
+    "response": "ack"
+  }
+}

@@ -1,0 +1,33 @@
+[Unit]
+Description=Aura-Guard v1.3 deterministic AI audit middleware
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=aura-guard
+Group=aura-guard
+EnvironmentFile=/etc/aura-guard/aura-guard.env
+ExecStart=/usr/local/bin/aura-guard
+WorkingDirectory=/var/lib/aura-guard
+Restart=on-failure
+RestartSec=2s
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/aura-guard /var/log/aura-guard
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictAddressFamilies=AF_INET AF_INET6
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target

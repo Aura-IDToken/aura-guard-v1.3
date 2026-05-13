@@ -1,0 +1,8 @@
+{
+  "context": "Finance Compliance Review",
+  "policy_set": "finance-v1",
+  "payload": {
+    "prompt": "Wire EUR 50,000 to IBAN PL61109010140000071219812874 via DEUTDEFF.",
+    "response": "Please confirm beneficiary identity before initiating SEPA transfer."
+  }
+}

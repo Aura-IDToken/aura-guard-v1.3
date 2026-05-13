@@ -1,0 +1,223 @@
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+//! End-to-end HTTP test via `tower::ServiceExt::oneshot`.
+//!
+//! Spins up the Axum router in-process (no real TCP socket) and exercises the
+//! audit endpoint with API key authentication enabled. The audit log is
+//! written into a `tempfile::TempDir` so tests are hermetic.
+
+use aura_guard::api::{build_router, AppState};
+use aura_guard::config::Config;
+use aura_guard::crypto::genesis_hash;
+use aura_guard::log_writer::LogWriter;
+use aura_guard::policy::{load_policy, CompiledPolicy, TrustedSigners};
+use axum::body::Body;
+use axum::http::{Request, StatusCode};
+use dashmap::DashMap;
+use http_body_util::BodyExt;
+use std::path::PathBuf;
+use std::sync::Arc;
+use tempfile::TempDir;
+use tower::ServiceExt;
+
+fn manifest_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+}
+
+fn build_state() -> (AppState, TempDir) {
+    let tmp = TempDir::new().expect("tempdir");
+    let cfg = Config {
+        bind: "127.0.0.1:0".parse().unwrap(),
+        api_key: Some("test-key".to_string()),
+        auth_disabled: false,
+        policies_dir: manifest_root().join("policies"),
+        trusted_signers_file: manifest_root().join("policies/trusted_signers.json"),
+        default_policy_set: "finance-v1".to_string(),
+        audit_log_path: tmp.path().join("audit.jsonl"),
+        max_body_bytes: 64 * 1024,
+        request_timeout_ms: 2_000,
+        metrics_enabled: true,
+    };
+
+    let signers = Arc::new(TrustedSigners::empty());
+    let log =
+        LogWriter::open(cfg.audit_log_path.clone(), &genesis_hash()).expect("opens fresh log");
+
+    let policies: DashMap<String, Arc<CompiledPolicy>> = DashMap::new();
+    for name in ["finance-v1", "medtech-v1", "hr-bias-v1"] {
+        let p = load_policy(name, &cfg.policies_dir, &signers, false)
+            .expect("policy loads under enforce_signatures=false");
+        policies.insert(name.to_string(), Arc::new(p));
+    }
+
+    let state = AppState {
+        config: Arc::new(cfg),
+        policies: Arc::new(policies),
+        log,
+        signers,
+        enforce_signatures: false,
+    };
+    (state, tmp)
+}
+
+async fn post_json(
+    app: axum::Router,
+    path: &str,
+    api_key: Option<&str>,
+    body: serde_json::Value,
+) -> (StatusCode, serde_json::Value) {
+    let mut req = Request::builder()
+        .method("POST")
+        .uri(path)
+        .header("Content-Type", "application/json");
+    if let Some(k) = api_key {
+        req = req.header("X-API-Key", k);
+    }
+    let req = req
+        .body(Body::from(body.to_string()))
+        .expect("request builds");
+    let resp = app.oneshot(req).await.expect("router responds");
+    let status = resp.status();
+    let bytes = resp
+        .into_body()
+        .collect()
+        .await
+        .expect("collect")
+        .to_bytes();
+    let body = serde_json::from_slice::<serde_json::Value>(&bytes)
+        .unwrap_or_else(|_| serde_json::Value::String(String::from_utf8_lossy(&bytes).into()));
+    (status, body)
+}
+
+#[tokio::test]
+async fn audit_denies_credit_card() {
+    let (state, _tmp) = build_state();
+    let app = build_router(state);
+
+    let (status, body) = post_json(
+        app,
+        "/v1/audit",
+        Some("test-key"),
+        serde_json::json!({
+            "context": "Finance Bot",
+            "policy_set": "finance-v1",
+            "payload": {
+                "prompt": "Card 4111-1111-1111-1111 please.",
+                "response": "ack"
+            }
+        }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK, "body={body}");
+    assert_eq!(body["decision"], "DENY");
+    assert_eq!(body["seq"], 0);
+    assert_eq!(body["prev_hash"], genesis_hash());
+    assert_eq!(body["chain_hash"].as_str().unwrap().len(), 64);
+}
+
+#[tokio::test]
+async fn audit_rejects_unknown_policy() {
+    let (state, _tmp) = build_state();
+    let app = build_router(state);
+
+    let (status, _body) = post_json(
+        app,
+        "/v1/audit",
+        Some("test-key"),
+        serde_json::json!({
+            "context": "x",
+            "policy_set": "does-not-exist",
+            "payload": { "prompt": "x", "response": "y" }
+        }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn audit_requires_api_key() {
+    let (state, _tmp) = build_state();
+    let app = build_router(state);
+
+    let (status, _) = post_json(
+        app,
+        "/v1/audit",
+        None,
+        serde_json::json!({ "context": "x", "payload": { "prompt": "x", "response": "y" } }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn audit_rejects_wrong_api_key() {
+    let (state, _tmp) = build_state();
+    let app = build_router(state);
+
+    let (status, _) = post_json(
+        app,
+        "/v1/audit",
+        Some("wrong-key"),
+        serde_json::json!({ "context": "x", "payload": { "prompt": "x", "response": "y" } }),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn chain_grows_monotonically() {
+    let (state, _tmp) = build_state();
+    let app = build_router(state.clone());
+
+    // First entry.
+    let (_, e0) = post_json(
+        app.clone(),
+        "/v1/audit",
+        Some("test-key"),
+        serde_json::json!({
+            "context": "Finance Bot",
+            "payload": { "prompt": "hello", "response": "world" }
+        }),
+    )
+    .await;
+
+    // Second entry.
+    let (_, e1) = post_json(
+        app,
+        "/v1/audit",
+        Some("test-key"),
+        serde_json::json!({
+            "context": "Finance Bot",
+            "payload": { "prompt": "test 4111-1111-1111-1111", "response": "ack" }
+        }),
+    )
+    .await;
+
+    assert_eq!(e0["seq"], 0);
+    assert_eq!(e1["seq"], 1);
+    assert_eq!(e1["prev_hash"], e0["chain_hash"]);
+    assert_ne!(e0["chain_hash"], e1["chain_hash"]);
+}
+
+#[tokio::test]
+async fn health_and_ready_are_public() {
+    let (state, _tmp) = build_state();
+    let app = build_router(state);
+
+    for path in ["/health", "/ready", "/version"] {
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(path)
+                    .body(Body::empty())
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        assert_eq!(resp.status(), StatusCode::OK, "{path} should be public");
+    }
+}

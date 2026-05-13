@@ -1,0 +1,8 @@
+{
+  "context": "MedTech Clinic Assistant",
+  "policy_set": "medtech-v1",
+  "payload": {
+    "prompt": "Patient PESEL 44051401359, diagnosis: kardiologiczna, dosage 25 mg metoprolol.",
+    "response": "Recommendation forwarded to attending physician."
+  }
+}
