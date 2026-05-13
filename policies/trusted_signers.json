@@ -1,0 +1,3 @@
+{
+  "_comment": "Map signer-ID -> 64-hex Ed25519 public key. Populate with 'aura-sign-policy keygen' output."
+}

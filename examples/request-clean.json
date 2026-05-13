@@ -1,0 +1,8 @@
+{
+  "context": "General Support Bot",
+  "policy_set": "finance-v1",
+  "payload": {
+    "prompt": "How can I reset my password?",
+    "response": "Use the 'Forgot password' link on the login page."
+  }
+}

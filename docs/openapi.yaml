@@ -1,0 +1,119 @@
+openapi: 3.0.3
+info:
+  title: Aura-Guard Audit API
+  version: 1.3.0
+  description: Deterministic AI audit middleware (Atom-Grade v1.3).
+  license:
+    name: MIT
+servers:
+  - url: http://127.0.0.1:8080
+    description: Local development
+paths:
+  /v1/audit:
+    post:
+      summary: Evaluate one AI interaction against a policy pack
+      security:
+        - apiKey: []
+        - bearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuditRequest'
+      responses:
+        '200':
+          description: Audit entry produced
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditEntry'
+        '400':
+          description: Unknown policy_set or invalid body
+        '401':
+          description: Missing or invalid API key
+        '413':
+          description: Body exceeds AURA_MAX_BODY_BYTES
+        '503':
+          description: Audit log halted (fail-closed posture)
+  /health:
+    get:
+      summary: Liveness probe
+      responses:
+        '200':
+          description: Process is up
+  /ready:
+    get:
+      summary: Readiness probe
+      responses:
+        '200':
+          description: Ready to serve audits
+        '503':
+          description: Audit log halted
+  /version:
+    get:
+      summary: Build metadata
+      responses:
+        '200':
+          description: Service version + genesis hash
+  /metrics:
+    get:
+      summary: Prometheus exposition
+      responses:
+        '200':
+          description: Text exposition format
+components:
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    bearer:
+      type: http
+      scheme: bearer
+  schemas:
+    AuditRequest:
+      type: object
+      required: [context, payload]
+      properties:
+        context:
+          type: string
+          example: 'Finance Bot'
+        policy_set:
+          type: string
+          example: 'finance-v1'
+        payload:
+          type: object
+          required: [prompt, response]
+          properties:
+            prompt: { type: string }
+            response: { type: string }
+    AuditEntry:
+      type: object
+      required: [schema, seq, audit_id, timestamp, decision, policy_set,
+                 policy_hash, context, input_hash, shadow_hash, prev_hash,
+                 chain_hash, violations]
+      properties:
+        schema: { type: string, example: 'aura-guard.audit.v1' }
+        seq: { type: integer, format: int64 }
+        audit_id: { type: string, format: uuid }
+        timestamp: { type: string, format: date-time }
+        decision:
+          type: string
+          enum: [ALLOW, REVIEW, DENY]
+        policy_set: { type: string }
+        policy_hash: { type: string, description: 'SHA-256 of the YAML policy bytes' }
+        context: { type: string }
+        input_hash: { type: string, description: 'SHA-256 of context + prompt + response' }
+        shadow_hash: { type: string, description: 'SHA-256 of the SHADOW-normalized input' }
+        prev_hash: { type: string }
+        chain_hash: { type: string }
+        violations:
+          type: array
+          items:
+            type: object
+            properties:
+              rule: { type: string }
+              action: { type: string, enum: [allow, review, deny] }
+              confidence: { type: number, format: float }
+              validator: { type: string, nullable: true }

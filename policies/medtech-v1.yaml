@@ -1,0 +1,24 @@
+name: medtech-v1
+version: "1.3.0"
+rules:
+  # Polish national ID (PESEL) — 11 digits, weighted checksum.
+  - id: pesel
+    pattern: '\b[0-9]{11}\b'
+    action: deny
+    score: 1.0
+    validator: pesel
+
+  # Clinical diagnoses (ICD-10 keywords). Case-insensitive at the engine level.
+  - id: diagnosis-keyword
+    pattern: '\b(diagnosis|rozpoznanie|icd-?10|onkolog|kardiolog|neurolog)\b'
+    action: review
+    score: 0.7
+
+  # Medication + dosage, gated on the MedTech context so general chit-chat
+  # does not trigger.
+  - id: medication-dosage
+    pattern: '\b\d+\s?(mg|ml|µg|ug)\b'
+    action: review
+    score: 0.6
+    conditions:
+      context: 'MedTech'

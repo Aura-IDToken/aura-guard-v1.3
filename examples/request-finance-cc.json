@@ -1,0 +1,8 @@
+{
+  "context": "Finance Bot",
+  "policy_set": "finance-v1",
+  "payload": {
+    "prompt": "Please process card 4111-1111-1111-1111 for the client.",
+    "response": "I cannot process payment data — the card number is restricted."
+  }
+}
