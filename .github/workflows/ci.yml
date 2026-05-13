@@ -41,12 +41,15 @@ jobs:
       - run: cargo build --locked --release --all-targets
       - run: cargo test --locked --all-targets
 
+  # cargo-{audit,deny,cyclonedx} track current stable rustc; using @stable
+  # here is intentional. The MSRV guarantee for the *crate itself* is
+  # enforced by the fmt/clippy/test jobs which pin to 1.85.0.
   audit:
     name: cargo-audit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.85.0
+      - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo install --locked cargo-audit
       - run: cargo audit --deny warnings
@@ -56,7 +59,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.85.0
+      - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo install --locked cargo-deny
       - run: cargo deny check
@@ -67,7 +70,7 @@ jobs:
     needs: [ test ]
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.85.0
+      - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo install --locked cargo-cyclonedx
       - run: cargo cyclonedx --format json --override-filename sbom.cdx
