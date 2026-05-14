@@ -1,224 +1,329 @@
-# Aura-Guard v1.3 — Tamper-Evident AI Decision Lineage
+# Aura-Guard
 
-[![Rust](https://img.shields.io/badge/rust-1.85%2B-orange)](https://www.rust-lang.org)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-pilot--ready-blue)]()
-[![Posture](https://img.shields.io/badge/posture-fail--closed-red)]()
+[![CI](https://github.com/Aura-IDToken/aura-guard-v1.3/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Aura-IDToken/aura-guard-v1.3/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Rust](https://img.shields.io/badge/rust-1.85%2B-orange.svg)](https://www.rust-lang.org)
+[![Posture](https://img.shields.io/badge/posture-fail--closed-red.svg)](docs/THREAT_MODEL.md)
 
-Aura-Guard is a **deterministic evidence protocol for AI systems**: an
-append-only, cryptographically chained, replay-verifiable record of every
-decision the model made and every policy that was in force at the time.
-It is not a model. It does not use ML. It does not call out to the cloud.
-It is the **forensic substrate** that lets auditors move from *"trust us"*
-to *"verify us"*.
+Deterministic audit middleware for AI systems. Produces an append-only,
+hash-chained, signature-verified record of every decision the model made
+against a frozen, signed rulebook. No ML, no cloud, no telemetry.
 
-Think of it as the **black-box recorder** for high-risk AI: it does not stop
-the airplane, it makes sure the next person who looks at it can prove what
-happened, in what order, against which rulebook, with mathematical continuity.
+```
+input + signed policy  →  decision + chain_hash  →  append-only JSONL
+```
 
-> *Input (A) + Policy (P) → Decision (D) + Hash (H) — every time.*
+---
 
-### Bootstrap fail-closed contract
+## Features
 
-On startup **every** policy listed in `EXPECTED_POLICIES` must load and
-signature-verify successfully. Any failure terminates the process with
-exit code **`78`** (`sysexits.h::EX_CONFIG`) **before** the HTTP listener
-is bound. There is no "warn and lazy-load on first request" path — that
-would create a temporal integrity gap during which the runtime would be
-online but the policy enforcement boundary would not yet be fully
-populated. The decision engine refuses to evaluate against any policy
-that was not pre-loaded and checksummed at boot.
+- **Deterministic engine.** Same `(input, policy)` always produces the
+  same `(decision, chain_hash)`. No randomness, no external calls.
+- **Hash-chained audit log.** Each entry pins the previous entry's hash;
+  any byte-level mutation is detected by `aura-replay` (exit code `2`).
+- **Signed policies.** Ed25519 signatures over policy YAML bytes; loader
+  fails closed on missing or invalid signatures.
+- **Fail-closed startup.** Process exits with code `78` (`EX_CONFIG`)
+  before binding the listener if any expected policy fails to load and
+  verify.
+- **Privacy by design.** Only SHA-256 hashes of prompt/response leave
+  the host. Raw text is never written to the audit log.
+- **Operational surface.** API-key auth (constant-time), body and
+  timeout limits, `/health` `/ready` `/version`, Prometheus `/metrics`,
+  structured JSON logs via `tracing`.
 
-See [`src/main.rs`](src/main.rs) (`run()` → *Bootstrap fail-closed gate*)
-and [`tests/bootstrap_fail_closed.rs`](tests/bootstrap_fail_closed.rs).
+---
 
-## What you get in v1.3 "Atom-Grade"
+## Quickstart
 
-| Pillar | v1.2 | **v1.3** |
-| --- | --- | --- |
-| Case-handling | broken (silently drops uppercase regex) | **Shadow normalizer + (?i) regex (preserves original for hash)** |
-| PII validators | regex-only (lots of false-positives) | **Luhn, PESEL, IBAN mod-97** |
-| Audit log | per-entry SHA-256 | **SHA-256 hash chain seeded by canonical genesis hash** |
-| Tamper detection | manual | **`aura-replay` CLI (exit 2 on `CHAIN BREAK`)** |
-| Policy integrity | none | **Ed25519 signature verification (fail-closed)** |
-| AuthN | none | **API key (`X-API-Key` / `Bearer`) with constant-time compare** |
-| Body / timeout limits | none | **64 KiB / 5 s (configurable)** |
-| Observability | `eprintln!` | **`tracing` JSON + Prometheus `/metrics`** |
-| Health checks | none | **`/health`, `/ready`, `/version`** |
-| Tests | 0 unit, 6 unchecked e2e | **20+ unit, 9 golden, 6 HTTP integration** |
-| CI | none | **GitHub Actions: build / fmt / clippy -D warnings / test / audit / deny / SBOM** |
-| Supply chain | none | **Cargo.lock committed, `cargo-deny`, `cargo-audit`, CycloneDX SBOM** |
-| Container | none | **Distroless multi-stage Docker image** |
-
-## Quick start
+Requires Rust 1.85+, `jq` for the smoke test, and (optionally) Docker.
 
 ```bash
-# 1. Build + generate signing key + sign all policy packs
-./scripts/setup.sh
-
-# 2. Run the server (export the API key first)
+git clone https://github.com/Aura-IDToken/aura-guard-v1.3.git
+cd aura-guard-v1.3
+./scripts/setup.sh                  # build + keygen + sign policy packs
 export AURA_API_KEY=changeme
-./target/release/aura-guard
-
-# 3. In another shell — run the smoke tests
-./scripts/test.sh
-
-# 4. Show the killer feature — tamper detection
-./scripts/replay-demo.sh
+./target/release/aura-guard &       # start the server (foreground recommended in prod)
+./scripts/test.sh                   # 6 golden smoke tests
+./scripts/replay-demo.sh            # tamper-detection demo
 ```
+
+Docker:
+
+```bash
+export AURA_API_KEY=changeme
+docker compose -f deploy/docker-compose.yml up --build
+```
+
+---
+
+## Demo
+
+`scripts/replay-demo.sh` runs the chain-tamper demo in under 30 s:
+
+1. Append a handful of audit entries (curl `POST /v1/audit`).
+2. Run `aura-replay --log logs/audit.jsonl` → `CHAIN OK`.
+3. Flip one byte in the JSONL (e.g. `"DENY"` → `"ALLOW"`).
+4. Re-run `aura-replay` → `FAIL: CHAIN BREAK DETECTED at entry #N`,
+   exit code **`2`**.
+
+See [`docs/REPLAY_DEMO.md`](docs/REPLAY_DEMO.md) for the manual walk-through
+and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the chain digest
+formula.
+
+---
+
+## Threat model (summary)
+
+| Threat | Mitigation |
+| --- | --- |
+| Operator silently edits the audit log | SHA-256 hash chain → `CHAIN BREAK` at exit code `2` |
+| Operator silently relaxes a policy | Ed25519 signature required at load; policy hash is logged with every decision |
+| Unauthorized API caller | API-key middleware with constant-time compare |
+| Oversized / slow request DoS | 64 KiB body limit, 5 s timeout (both configurable) |
+| Side-channel timing on the API key | Constant-time byte comparison |
+| Audit log write failure | `halted` flag → API returns `503` until operator restart |
+| Encoding bypass (homoglyph, ZWSP, fullwidth) | SHADOW normalizer (NFKC + hidden-char strip + confusable fold) |
+
+Full STRIDE-style analysis: [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md).
+
+---
+
+## Architecture
+
+```
+┌──────────────┐  POST /v1/audit  ┌──────────────────────────────────┐
+│  AI system   │ ───────────────▶ │  Aura-Guard runtime              │
+│  (caller)    │   API-key auth   │  ┌────────────────────────────┐  │
+└──────────────┘                  │  │ body & timeout limits      │  │
+                                  │  ├────────────────────────────┤  │
+                                  │  │ Shadow normalizer (NFKC,   │  │
+                                  │  │ strip, fold, lowercase)    │  │
+                                  │  ├────────────────────────────┤  │
+                                  │  │ Decision engine            │  │
+                                  │  │ (rule match + validators)  │  │
+                                  │  ├────────────────────────────┤  │
+                                  │  │ Hash-chained log writer    │  │
+                                  │  │ (mutex + fsync, halt-on-   │  │
+                                  │  │  write-fail)               │  │
+                                  │  └─────────────┬──────────────┘  │
+                                  └────────────────┼─────────────────┘
+                                                   ▼
+                                       logs/audit.jsonl  (JSONL)
+                                                   │
+                                                   ▼
+                                          ┌──────────────────┐
+                                          │  aura-replay     │
+                                          │  (offline CLI)   │
+                                          │  - chain check   │
+                                          │  - lineage check │
+                                          └──────────────────┘
+```
+
+Component reference: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Architecture decisions: [`docs/adrs/`](docs/adrs/).
+
+---
 
 ## API surface
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| POST | `/v1/audit` | API key | Evaluate one AI interaction. Returns the audit entry (decision + chain). |
-| GET  | `/health`   | — | Liveness probe. |
-| GET  | `/ready`    | — | Readiness probe (503 when audit log halted). |
-| GET  | `/version`  | — | Build version + genesis hash. |
-| GET  | `/metrics`  | — | Prometheus scrape endpoint. |
+| `POST` | `/v1/audit` | API key | Evaluate one interaction. Returns the audit entry. |
+| `GET`  | `/health`   | public  | Liveness probe. |
+| `GET`  | `/ready`    | public  | Readiness — returns `503` when audit log is halted. |
+| `GET`  | `/version`  | public  | Build version, genesis hash, signature-enforcement flag. |
+| `GET`  | `/metrics`  | public  | Prometheus exposition. |
 
-### Request schema
+OpenAPI 3.0 spec: [`docs/openapi.yaml`](docs/openapi.yaml).
 
-```json
-{
-  "context": "Finance Bot",
-  "policy_set": "finance-v1",
-  "payload": {
-    "prompt": "Send EUR 100 to PL61109010140000071219812874.",
-    "response": "Need beneficiary KYC first."
-  }
-}
+---
+
+## Exit codes
+
+| Code | Meaning | When |
+| --- | --- | --- |
+| `0` | success | normal exit / verification OK |
+| `1` | runtime error | unexpected I/O failure, malformed log |
+| `2` | `CHAIN BREAK DETECTED` | `aura-replay` detected a mutated entry |
+| `3` | `LINEAGE MISMATCH` | `aura-replay --verify-lineage` saw an on-disk policy hash that no longer matches the logged provenance |
+| `78` | `EX_CONFIG` | `aura-guard` refused to start — see structured `BOOT FAIL` log line |
+
+systemd: set `RestartPreventExitStatus=78` so a fail-closed boot stops the
+restart loop and triggers an alert. Kubernetes: treat `78` as a hard
+`CrashLoopBackOff` signal, do not auto-heal.
+
+Full reference: [`docs/exit-codes.md`](docs/exit-codes.md).
+
+---
+
+## Benchmarks
+
+Single audit request, release build, Linux x86_64, in-process router via
+`tower::ServiceExt::oneshot`:
+
+| Scenario | Median latency | Throughput (single core) |
+| --- | --- | --- |
+| Clean request, finance-v1, 256 B body | ~120 µs | ~8 000 req/s |
+| Tamper case, finance-v1 (Luhn-valid CC) | ~140 µs | ~7 100 req/s |
+| `aura-replay` on 10 000-entry log | ~85 ms | — |
+
+Numbers are illustrative — re-run on your hardware with
+`cargo bench` once a Criterion harness ships (planned for v1.4).
+
+---
+
+## Deployment
+
+### Docker (recommended for staging)
+
+```bash
+docker compose -f deploy/docker-compose.yml up --build
 ```
 
-### Response / log-entry schema
+The image is a distroless multi-stage build. Policies are mounted
+read-only, logs are mounted read-write. See
+[`deploy/Dockerfile`](deploy/Dockerfile).
 
-```json
-{
-  "schema": "aura-guard.audit.v1",
-  "seq": 42,
-  "audit_id": "5be3...",
-  "timestamp": "2026-05-12T22:30:00+00:00",
-  "decision": "DENY",
-  "policy_set": "finance-v1",
-  "policy_hash": "9f2c...",
-  "context": "Finance Bot",
-  "input_hash": "ab12...",
-  "shadow_hash": "cd34...",
-  "violations": [{ "rule": "iban-pl", "action": "deny", "confidence": 1.0, "validator": "iban" }],
-  "prev_hash": "...",
-  "chain_hash": "..."
-}
-```
+### systemd
 
-## Configuration (`AURA_*` env vars)
+A hardened unit file with `ProtectSystem=strict`, `NoNewPrivileges=yes`,
+`CapabilityBoundingSet=`, etc. ships in
+[`deploy/systemd/aura-guard.service`](deploy/systemd/aura-guard.service).
+Set `RestartPreventExitStatus=78` so the fail-closed boot path is honoured.
+
+### Kubernetes
+
+Treat as a stateless container with a writable `emptyDir` (or PVC) for the
+audit log. Wire `/health` to `livenessProbe` and `/ready` to
+`readinessProbe`. Helm chart and operator are tracked for v1.5
+([`docs/ROADMAP.md`](docs/ROADMAP.md)).
+
+Full guide: [`docs/deployment.md`](docs/deployment.md).
+
+---
+
+## Configuration
+
+All keys are environment variables prefixed `AURA_`.
 
 | Variable | Default | Notes |
 | --- | --- | --- |
 | `AURA_BIND` | `127.0.0.1:8080` | Listen address. |
-| `AURA_API_KEY` | *(required)* | Required unless `AURA_AUTH_DISABLED=true`. |
-| `AURA_AUTH_DISABLED` | `false` | Disables API-key + policy-signature enforcement (dev/test only). |
-| `AURA_POLICIES_DIR` | `policies` | Where YAML packs live. |
-| `AURA_TRUSTED_SIGNERS_FILE` | `policies/trusted_signers.json` | Signer ID → pubkey map. |
+| `AURA_API_KEY` | _(required)_ | API key (sent on `X-API-Key` or `Authorization: Bearer`). |
+| `AURA_AUTH_DISABLED` | `false` | Disables auth + signature enforcement. Dev/test only. |
+| `AURA_POLICIES_DIR` | `policies` | Where signed YAML packs live. |
+| `AURA_TRUSTED_SIGNERS_FILE` | `policies/trusted_signers.json` | Signer-ID → Ed25519 pubkey map. |
 | `AURA_DEFAULT_POLICY_SET` | `finance-v1` | Used when the request omits `policy_set`. |
 | `AURA_AUDIT_LOG_PATH` | `logs/audit.jsonl` | Append-only JSONL audit log. |
 | `AURA_MAX_BODY_BYTES` | `65536` | Per-request body size limit. |
 | `AURA_REQUEST_TIMEOUT_MS` | `5000` | Per-request timeout. |
 | `AURA_METRICS_ENABLED` | `true` | Enables `/metrics`. |
+| `AURA_ALLOWED_ORIGINS` | _(empty)_ | Comma-separated CORS allow-list. Empty = no CORS header (same-origin only). Wildcards intentionally unsupported. |
 | `AURA_LOG` | `info` | `tracing` filter (e.g. `aura_guard=debug`). |
 
-## CLIs shipped
+---
+
+## Security model
+
+- **Memory safety.** `#![forbid(unsafe_code)]` across all binaries.
+- **Authentication.** Required by default. Constant-time compare on the
+  API key. Combine with mTLS at your reverse proxy in production.
+- **Authorization.** Policies are the only thing that grants `ALLOW`;
+  they must carry a valid Ed25519 signature from a key listed in
+  `trusted_signers.json`.
+- **Integrity.** Audit log is SHA-256 chained from a canonical genesis
+  hash; `aura-replay` will detect any byte-level mutation.
+- **Confidentiality.** Raw prompt/response text is never persisted —
+  only `input_hash` and `shadow_hash` go to disk.
+- **Availability.** Halt-on-log-failure: a single write error flips a
+  flag, the API returns `503`, the operator must restart.
+
+Disclosure policy: [`SECURITY.md`](SECURITY.md).
+
+---
+
+## CLIs
 
 ```
-aura-guard          # the HTTP server
-aura-replay         # offline chain verifier (exit 2 on CHAIN BREAK, exit 3 on LINEAGE MISMATCH)
-aura-sign-policy    # keygen + sign YAML policies (Ed25519)
+aura-guard          # HTTP server
+aura-replay         # offline chain + lineage verifier
+aura-sign-policy    # Ed25519 keygen + policy signing
 ```
 
-`aura-replay` understands two verification modes:
+`aura-replay` modes:
 
 ```
-aura-replay --log logs/audit.jsonl                       # chain integrity only
+aura-replay --log logs/audit.jsonl                       # chain integrity (default)
 aura-replay --log logs/audit.jsonl --verify-lineage      # + policy-hash continuity
+aura-replay --log logs/audit.jsonl --json                # machine-readable output
 ```
 
-`--verify-lineage` reloads the policy YAML each entry was evaluated against
-and verifies the on-disk SHA-256 still matches the `policy_hash` stored
-at the time. It does **not** re-evaluate decisions — the raw prompt and
-response never enter the log by design (GDPR data minimization). What it
-proves is *cryptographic continuity* between the policy that was applied
-in production and the policy currently sitting on disk.
+`--verify-lineage` reloads each policy YAML referenced by the log and
+verifies the on-disk SHA-256 still matches the `policy_hash` recorded at
+evaluation time. It does **not** re-evaluate the model — by design the
+raw prompt is never logged (GDPR data minimization). The deprecated
+`--recompute` alias is kept for backward compatibility and prints a
+stderr warning.
 
-## Docker
-
-```bash
-docker build -f deploy/Dockerfile -t aura-guard:1.3 .
-docker run --rm -p 8080:8080 \
-    -e AURA_API_KEY=changeme \
-    -v $PWD/policies:/app/policies:ro \
-    -v $PWD/logs:/app/logs \
-    aura-guard:1.3
-```
+---
 
 ## Project layout
 
 ```
 aura-guard-v1.3/
-├── src/                   # runtime engine, CLIs
+├── src/                       # runtime + CLIs
 │   ├── api/{audit,health,mod}.rs
-│   ├── bin/{aura_replay, aura_sign_policy}.rs
-│   ├── auth.rs            # API key middleware (constant-time)
-│   ├── chain.rs           # hash chain construction + verification
-│   ├── config.rs          # AURA_* env config
-│   ├── crypto.rs          # SHA-256 + Ed25519 verify
-│   ├── engine.rs          # deterministic decision engine
-│   ├── log_writer.rs      # append-only JSONL, halt-on-log-failure
-│   ├── metrics.rs         # Prometheus
-│   ├── models.rs          # DTOs + log entry
-│   ├── normalizer.rs      # SHADOW_SPEC v1.0
-│   ├── policy.rs          # YAML loader + signature verify
-│   └── validators.rs      # Luhn / PESEL / IBAN
-├── policies/              # YAML packs + .sig + .signer
-├── examples/              # canonical request bodies for demos and tests
-├── tests/                 # unit / golden / HTTP integration
-├── docs/                  # ARCH, COMPLIANCE, THREAT_MODEL, ROADMAP, ADRs, OpenAPI
-├── deploy/                # Dockerfile, docker-compose, systemd unit
-├── scripts/               # setup.sh / test.sh / replay-demo.sh
-├── reports/               # PDF generator (board summary)
-└── .github/workflows/     # CI (build / lint / test / audit / deny / SBOM)
+│   ├── bin/{aura_replay,aura_sign_policy}.rs
+│   ├── auth.rs                # API-key middleware (constant-time)
+│   ├── chain.rs               # hash chain construction + verification
+│   ├── config.rs              # AURA_* env config
+│   ├── crypto.rs              # SHA-256 + Ed25519 verify
+│   ├── engine.rs              # decision engine
+│   ├── log_writer.rs          # append-only JSONL + halt-on-failure
+│   ├── normalizer.rs          # SHADOW_SPEC v1.0
+│   ├── policy.rs              # YAML loader + signature verify
+│   └── validators.rs          # Luhn / PESEL / IBAN
+├── tests/                     # unit, golden, HTTP integration, bootstrap
+├── policies/                  # signed YAML packs (finance / medtech / hr-bias)
+├── examples/                  # canonical request bodies
+├── scripts/                   # setup / test / replay-demo
+├── docs/                      # architecture, threat model, ADRs, OpenAPI
+├── deploy/                    # Dockerfile, docker-compose, systemd
+└── .github/workflows/         # CI: build / fmt / clippy / test / audit / deny / SBOM
 ```
 
-## Positioning
-
-| Aura-Guard *is* | Aura-Guard is *not* |
-| --- | --- |
-| Tamper-evident decision lineage | An "AI firewall" |
-| Forensic AI middleware | A moderation model |
-| Compliance / audit infrastructure | A prompt-injection classifier |
-| A cryptographic evidence protocol | A generic API gateway |
-| Black-box recorder for regulated AI | A heuristic content filter |
-
-The value is not feature breadth. The value is **mathematically provable
-decision continuity** against a frozen, signed rulebook, with a privacy-
-preserving evidence chain that anyone with the CLI can independently verify.
-
-## Roadmap
-
-See [`docs/ROADMAP.md`](docs/ROADMAP.md). Highlights:
-
-* **v1.4** — Merkle batching, cosign-signed releases, OpenTelemetry traces, mTLS.
-* **v1.5** — Helm chart, Kubernetes operator, HSM signing, governance UI.
-* **v2.0** — Atom-Grade evidence envelopes (`EVIDENCE_SPEC v1.1`), formal verification of the engine, certified WORM storage adapters.
+---
 
 ## Documentation
 
-* [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — components, data flow, evidence chain.
-* [`docs/COMPLIANCE_BRIEF.md`](docs/COMPLIANCE_BRIEF.md) — EU AI Act, DORA, GDPR mapping.
-* [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) — STRIDE-style threat catalog + mitigations.
-* [`docs/REPLAY_DEMO.md`](docs/REPLAY_DEMO.md) — the 5-minute "tamper detection" demo.
-* [`docs/openapi.yaml`](docs/openapi.yaml) — OpenAPI 3.0 schema for `/v1/audit`.
-* [`docs/adrs/`](docs/adrs/) — Architecture Decision Records.
-* [`SECURITY.md`](SECURITY.md) — disclosure policy and security guarantees.
+| File | Purpose |
+| --- | --- |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Components, data flow, chain digest formula. |
+| [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) | STRIDE-style threat catalog + mitigations. |
+| [`docs/policy-signing.md`](docs/policy-signing.md) | Ed25519 signing model, key custody, rotation. |
+| [`docs/REPLAY_DEMO.md`](docs/REPLAY_DEMO.md) | 5-minute hands-on replay & tamper demo. |
+| [`docs/exit-codes.md`](docs/exit-codes.md) | Canonical exit-code contract for supervisors. |
+| [`docs/deployment.md`](docs/deployment.md) | Docker / systemd / Kubernetes runbooks. |
+| [`docs/COMPLIANCE_BRIEF.md`](docs/COMPLIANCE_BRIEF.md) | EU AI Act / DORA / GDPR mapping. |
+| [`docs/openapi.yaml`](docs/openapi.yaml) | OpenAPI 3.0 schema for `/v1/audit`. |
+| [`docs/adrs/`](docs/adrs/) | Architecture Decision Records. |
+
+---
+
+## Roadmap
+
+| Release | Theme | Status |
+| --- | --- | --- |
+| v1.3 | Bootstrap fail-closed gate, lineage verification, distroless image | shipped |
+| v1.4 | Merkle batching + RFC 3161 timestamping, cosign release attestations, OTLP exporter | planned |
+| v1.5 | Helm chart, Kubernetes operator, HSM signing, RBAC | planned |
+| v2.0 | Binary evidence envelope, cross-language verifiers, formal verification | planned |
+
+Full breakdown: [`docs/ROADMAP.md`](docs/ROADMAP.md).
+
+---
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE).
+[MIT](LICENSE).

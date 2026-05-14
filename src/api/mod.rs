@@ -4,14 +4,14 @@ pub mod audit;
 pub mod health;
 
 use axum::extract::DefaultBodyLimit;
-use axum::http::StatusCode;
+use axum::http::{HeaderValue, StatusCode};
 use axum::middleware;
 use axum::routing::{get, post};
 use axum::Router;
 use dashmap::DashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::CorsLayer;
 use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::TraceLayer;
 
@@ -48,6 +48,7 @@ pub fn build_router(state: AppState) -> Router {
     let cfg = state.config.clone();
     let timeout = Duration::from_millis(cfg.request_timeout_ms);
     let body_limit = cfg.max_body_bytes;
+    let allowed_origins = cfg.allowed_origins.clone();
 
     // Authenticated audit endpoint.
     let authed = Router::new()
@@ -64,7 +65,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/version", get(health::version))
         .route("/metrics", get(health::metrics));
 
-    Router::new()
+    let mut router = Router::new()
         .merge(authed)
         .merge(public)
         .with_state(state)
@@ -73,11 +74,36 @@ pub fn build_router(state: AppState) -> Router {
             StatusCode::REQUEST_TIMEOUT,
             timeout,
         ))
-        .layer(TraceLayer::new_for_http())
-        .layer(
-            CorsLayer::new()
-                .allow_origin(Any)
-                .allow_methods(Any)
-                .allow_headers(Any),
-        )
+        .layer(TraceLayer::new_for_http());
+
+    // CORS defaults to deny: no `Access-Control-Allow-Origin` header is
+    // emitted unless `AURA_ALLOWED_ORIGINS` is set, in which case only the
+    // listed origins are allowed. Wildcards are intentionally unsupported.
+    if let Some(layer) = build_cors_layer(&allowed_origins) {
+        router = router.layer(layer);
+    }
+    router
+}
+
+fn build_cors_layer(origins: &[String]) -> Option<CorsLayer> {
+    if origins.is_empty() {
+        return None;
+    }
+    let parsed: Vec<HeaderValue> = origins
+        .iter()
+        .filter_map(|o| HeaderValue::from_str(o).ok())
+        .collect();
+    if parsed.is_empty() {
+        return None;
+    }
+    Some(
+        CorsLayer::new()
+            .allow_origin(parsed)
+            .allow_methods([axum::http::Method::POST, axum::http::Method::GET])
+            .allow_headers([
+                axum::http::header::CONTENT_TYPE,
+                axum::http::header::AUTHORIZATION,
+                axum::http::HeaderName::from_static("x-api-key"),
+            ]),
+    )
 }

@@ -58,6 +58,39 @@ pub struct Config {
     /// Enable the `/metrics` Prometheus endpoint.
     #[serde(default = "default_true")]
     pub metrics_enabled: bool,
+
+    /// Allowed CORS origins.
+    ///
+    /// Empty by default — no `Access-Control-Allow-Origin` header is emitted
+    /// and browsers will block cross-origin requests under the same-origin
+    /// policy. Set `AURA_ALLOWED_ORIGINS="https://app.example.com,https://ops.example.com"`
+    /// to opt into a strict allow-list. Wildcards are not supported on purpose.
+    #[serde(default, deserialize_with = "deserialize_origins")]
+    pub allowed_origins: Vec<String>,
+}
+
+/// Accept either a JSON array (`["a", "b"]`) or a comma-separated string
+/// (`"a,b"`) for `AURA_ALLOWED_ORIGINS`. The env-var path always provides a
+/// string, so the second branch is the common one in production.
+fn deserialize_origins<'de, D>(de: D) -> Result<Vec<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::Deserialize;
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum OneOrMany {
+        One(String),
+        Many(Vec<String>),
+    }
+    Ok(match OneOrMany::deserialize(de)? {
+        OneOrMany::One(s) => s
+            .split(',')
+            .map(|p| p.trim().to_string())
+            .filter(|p| !p.is_empty())
+            .collect(),
+        OneOrMany::Many(v) => v.into_iter().filter(|p| !p.is_empty()).collect(),
+    })
 }
 
 fn default_bind() -> SocketAddr {
@@ -98,6 +131,7 @@ impl Default for Config {
             max_body_bytes: default_body_limit(),
             request_timeout_ms: default_timeout_ms(),
             metrics_enabled: true,
+            allowed_origins: Vec::new(),
         }
     }
 }

@@ -1,8 +1,36 @@
 # Changelog
 
 All notable changes to this project are documented in this file.
+The format is loosely based on [Keep a Changelog](https://keepachangelog.com/),
+versions follow [Semantic Versioning](https://semver.org/).
 
-## [1.3.0] — 2026-05-12 — "Atom-Grade"
+## [Unreleased]
+
+### Changed
+- **CORS hardened to deny-by-default.** The runtime no longer emits
+  `Access-Control-Allow-Origin: *`. Configure
+  `AURA_ALLOWED_ORIGINS="https://app.example.com,https://ops.example.com"`
+  to opt into a strict allow-list. Wildcards are intentionally
+  unsupported.
+- README restructured around the standard OSS infrastructure template
+  (features → quickstart → demo → threat model → architecture → exit
+  codes → benchmarks → deployment → security → roadmap → license).
+- Branding cleanup: removed marketing-style "Atom-Grade" suffix from
+  README, CHANGELOG, ROADMAP, `Cargo.toml`, OpenAPI spec, and the
+  replay-demo talking points.
+- `scripts/replay-demo.sh` now prints structured step headers and the
+  observed exit code at each phase.
+
+### Added
+- [`docs/exit-codes.md`](docs/exit-codes.md) — canonical exit-code
+  contract for supervisors (systemd `RestartPreventExitStatus=78`,
+  Kubernetes CrashLoopBackOff guidance).
+- [`docs/policy-signing.md`](docs/policy-signing.md) — Ed25519 key
+  management, rotation, and multi-signer workflow notes.
+- [`docs/deployment.md`](docs/deployment.md) — Docker / systemd /
+  Kubernetes runbooks and a hardening checklist.
+
+## [1.3.0] — 2026-05-12
 
 ### Added
 - **Bootstrap fail-closed gate.** Aura-Guard now refuses to start (exit

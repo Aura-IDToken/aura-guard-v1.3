@@ -1,7 +1,8 @@
-# Replay Demo — 5-minute "trust but verify"
+# Replay Demo
 
-This is the demo script from `03_ARCHITECTURE_DEMO_GUIDE_v1.3`, fully
-automated by [`scripts/replay-demo.sh`](../scripts/replay-demo.sh).
+A five-minute walk-through of chain integrity, bootstrap fail-closed, and
+lineage continuity. Each step is also runnable end-to-end via
+[`scripts/replay-demo.sh`](../scripts/replay-demo.sh).
 
 ## Prerequisites
 
@@ -30,7 +31,7 @@ Expected: `"DENY"` and a 64-hex chain hash.
 
 Expected output: `CHAIN OK — head_chain_hash: <hash>` and exit code 0.
 
-## Step 3 — Tamper detection (the killer feature)
+## Step 3 — Tamper detection
 
 ```bash
 sed -i 's/"decision":"DENY"/"decision":"ALLOW"/' logs/audit.jsonl   # rewrite history
@@ -95,13 +96,15 @@ was written, the CLI aborts with `LINEAGE MISMATCH` (exit 3). The
 legacy `--recompute` alias still works but prints a deprecation warning
 to stderr; switch your audit playbooks to `--verify-lineage`.
 
-## Talking points
+## Operational summary
 
-* "Aura-Guard isn't a content filter — it's the **black-box recorder**
-  for high-risk AI."
-* "What we generate is **tamper-evident decision lineage**: a regulator
-  with our CLI and our published genesis hash can verify every decision
-  without trusting us at all."
-* "This is **Atom-Grade Trust**: deterministic, reproducible, lineage-
-  verifiable. The boot path is fail-closed and the verifier exit codes
-  are designed to fit into SOC / SIEM playbooks unchanged."
+* **Tamper detection is mechanical, not heuristic.** A one-byte edit
+  invalidates every subsequent `chain_hash`; auditors only need the CLI
+  and the published genesis hash to verify a captured log.
+* **Policy tampering is caught at boot.** Exit code `78` is the
+  contract; supervisors should treat it as a hard alert and not as part
+  of a restart loop.
+* **Lineage continuity is verifiable off-line.** `--verify-lineage`
+  compares the on-disk policy hash against the value stored in the log
+  and exits `3` on mismatch. The deprecated `--recompute` alias still
+  works and prints a stderr warning.
