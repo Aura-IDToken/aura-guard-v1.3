@@ -4,7 +4,7 @@
 
 | Version | Supported |
 | --- | --- |
-| 1.3.x | YES — current Atom-Grade line |
+| 1.3.x | yes (current stable) |
 | 1.2.x | security fixes only until 2026-12-31 |
 | < 1.2 | not supported (known case-sensitivity bug — please upgrade) |
 
@@ -30,6 +30,9 @@ The high-level guarantees:
 * **Authentication** — the `/v1/audit` endpoint requires a constant-time-
   compared API key on `X-API-Key` or `Authorization: Bearer`. In production
   combine with mTLS at the reverse proxy / sidecar layer.
+* **CORS deny-by-default** — the runtime does not emit any
+  `Access-Control-Allow-Origin` header unless `AURA_ALLOWED_ORIGINS` is
+  set to a strict allow-list (comma-separated, no wildcards).
 * **Fail-closed** — any audit-log write failure flips a halted flag.
   Subsequent requests return HTTP 503 and `/ready` returns 503. The operator
   must restart the service after restoring filesystem capacity.

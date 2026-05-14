@@ -33,6 +33,7 @@
 | **D**enial of Service | ReDoS via crafted prompt | Patterns are pre-compiled once, evaluated under a request-level timeout; rules can use length-bounded quantifiers. |
 | **D**enial of Service | Audit log fills disk | `halted` flag flips on first write failure → 503 across the API, manual recovery required. |
 | **E**levation of Privilege | Arbitrary policy injection | Loader rejects YAML without a matching `.sig`+`.signer` triple. |
+| **E**levation of Privilege | Cross-origin browser caller hits `/v1/audit` | CORS defaults to deny — no `Access-Control-Allow-Origin` header is emitted unless `AURA_ALLOWED_ORIGINS` is set to a strict allow-list. Wildcards are intentionally unsupported. |
 
 ## 4. Bypass-resistance
 

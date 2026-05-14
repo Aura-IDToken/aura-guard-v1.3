@@ -36,6 +36,7 @@ fn build_state() -> (AppState, TempDir) {
         max_body_bytes: 64 * 1024,
         request_timeout_ms: 2_000,
         metrics_enabled: true,
+        allowed_origins: Vec::new(),
     };
 
     let signers = Arc::new(TrustedSigners::empty());
@@ -220,4 +221,80 @@ async fn health_and_ready_are_public() {
             .expect("response");
         assert_eq!(resp.status(), StatusCode::OK, "{path} should be public");
     }
+}
+
+#[tokio::test]
+async fn cors_is_denied_by_default() {
+    // Default config has an empty allow-list, so the runtime must NOT
+    // emit Access-Control-Allow-Origin for cross-origin requests.
+    let (state, _tmp) = build_state();
+    let app = build_router(state);
+
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/health")
+                .header("Origin", "https://evil.example")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert!(
+        resp.headers().get("access-control-allow-origin").is_none(),
+        "CORS must default to deny — no allow-origin header expected, \
+         got: {:?}",
+        resp.headers().get("access-control-allow-origin"),
+    );
+}
+
+#[tokio::test]
+async fn cors_allows_only_listed_origins() {
+    let (mut state, _tmp) = build_state();
+    let cfg = Config {
+        allowed_origins: vec!["https://app.example.com".to_string()],
+        ..(*state.config).clone()
+    };
+    state.config = Arc::new(cfg);
+    let app = build_router(state);
+
+    // Allowed origin is echoed back.
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/health")
+                .header("Origin", "https://app.example.com")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(
+        resp.headers()
+            .get("access-control-allow-origin")
+            .map(|v| v.to_str().unwrap().to_string()),
+        Some("https://app.example.com".to_string())
+    );
+
+    // Untrusted origin gets no allow-origin header — the browser will block.
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/health")
+                .header("Origin", "https://evil.example")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert!(
+        resp.headers().get("access-control-allow-origin").is_none(),
+        "untrusted origin must not get an allow-origin header",
+    );
 }

@@ -1,10 +1,13 @@
 # Roadmap
 
-## Shipped in v1.3 "Atom-Grade"
+Semver-style. Dates are targets, not commitments. v1.4+ items are intentionally
+out of scope for v1.3 to keep the deterministic core small and reviewable.
+
+## Shipped in v1.3
 
 * **Bootstrap fail-closed gate** — exit code `78` (`EX_CONFIG`) if any
   expected policy fails to load and signature-verify at boot. Runtime
-  cache-only `resolve_policy` (no lazy-load path).
+  `resolve_policy` is cache-only (no lazy-load path).
 * Shadow normalizer (SHADOW_SPEC v1.0): NFKC + hidden-char strip + confusable
   folding + lowercase.
 * Semantic validators: Luhn (CC), PESEL (PL national ID), IBAN mod-97.
@@ -19,7 +22,7 @@
   / `cargo-deny` / CycloneDX SBOM artifact.
 * 21 unit + 2 bootstrap fail-closed + 10 golden + 6 HTTP integration tests.
 
-## v1.4 — Forensic-grade evidence layer (Q3 2026)
+## v1.4 — Evidence anchoring (Q3 2026)
 
 * **Merkle batching** — every N entries the chain produces a Merkle root that
   can be anchored to an external trust store.
@@ -50,12 +53,11 @@
   modifying the live chain).
 * Compliance evidence export bundles (PDF + JSONL + Merkle proof).
 
-## v2.0 — Atom-Grade reference implementation (2027)
+## v2.0 — Reference implementation (2027)
 
 * **EVIDENCE_SPEC v1.1** — 162-byte binary evidence envelope, bit-for-bit
   reproducible across implementations.
-* **VECTOR_001_GENESIS** conformance harness with cross-language verifiers
-  (Python, C reference).
+* Conformance harness with cross-language verifiers (Python, C reference).
 * **WORM media** adapters (immutable buckets, MinIO Object Lock, tape).
 * **Formal verification** of the decision engine and chain construction with
   Kani / Prusti.
