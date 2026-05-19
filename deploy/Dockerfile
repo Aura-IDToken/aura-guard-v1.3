@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 # ─── builder ─────────────────────────────────────────────────────────────
-FROM rust:1.85-slim-bookworm AS builder
+FROM rust:1.86-slim-bookworm AS builder
 
 ARG TARGET=x86_64-unknown-linux-gnu
 

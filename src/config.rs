@@ -67,6 +67,35 @@ pub struct Config {
     /// to opt into a strict allow-list. Wildcards are not supported on purpose.
     #[serde(default, deserialize_with = "deserialize_origins")]
     pub allowed_origins: Vec<String>,
+
+    /// Directory holding segment manifests (`NNNNNN.manifest.json`) and any
+    /// accompanying RFC 3161 Time-Stamp Responses (`NNNNNN.tsr`).
+    #[serde(default = "default_segments_dir")]
+    pub segments_dir: PathBuf,
+
+    /// Maximum number of audit entries per Merkle segment.
+    ///
+    /// Set to `0` to disable size-based sealing (time-based sealing still
+    /// applies). Default: 1000.
+    #[serde(default = "default_segment_size")]
+    pub segment_size: u64,
+
+    /// Maximum time, in seconds, a segment may stay open before being sealed.
+    ///
+    /// Set to `0` to disable time-based sealing (size-based sealing still
+    /// applies). Default: 60 seconds.
+    #[serde(default = "default_segment_interval_seconds")]
+    pub segment_interval_seconds: u64,
+
+    /// Optional RFC 3161 Time-Stamp Authority URL. When set, every sealed
+    /// segment manifest will be timestamped via HTTP POST; failures are
+    /// logged and counted but **do not halt** the service.
+    #[serde(default)]
+    pub tsa_url: Option<String>,
+
+    /// HTTP timeout for TSA requests, in seconds. Default: 10.
+    #[serde(default = "default_tsa_timeout_seconds")]
+    pub tsa_timeout_seconds: u64,
 }
 
 /// Accept either a JSON array (`["a", "b"]`) or a comma-separated string
@@ -117,6 +146,18 @@ fn default_timeout_ms() -> u64 {
 fn default_true() -> bool {
     true
 }
+fn default_segments_dir() -> PathBuf {
+    PathBuf::from("logs/segments")
+}
+fn default_segment_size() -> u64 {
+    1_000
+}
+fn default_segment_interval_seconds() -> u64 {
+    60
+}
+fn default_tsa_timeout_seconds() -> u64 {
+    10
+}
 
 impl Default for Config {
     fn default() -> Self {
@@ -132,6 +173,11 @@ impl Default for Config {
             request_timeout_ms: default_timeout_ms(),
             metrics_enabled: true,
             allowed_origins: Vec::new(),
+            segments_dir: default_segments_dir(),
+            segment_size: default_segment_size(),
+            segment_interval_seconds: default_segment_interval_seconds(),
+            tsa_url: None,
+            tsa_timeout_seconds: default_tsa_timeout_seconds(),
         }
     }
 }

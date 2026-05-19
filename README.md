@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/Aura-IDToken/aura-guard-v1.3/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Aura-IDToken/aura-guard-v1.3/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Rust](https://img.shields.io/badge/rust-1.85%2B-orange.svg)](https://www.rust-lang.org)
+[![Rust](https://img.shields.io/badge/rust-1.86%2B-orange.svg)](https://www.rust-lang.org)
 [![Posture](https://img.shields.io/badge/posture-fail--closed-red.svg)](docs/THREAT_MODEL.md)
 
 Deterministic audit middleware for AI systems. Produces an append-only,
@@ -21,6 +21,12 @@ input + signed policy  →  decision + chain_hash  →  append-only JSONL
   same `(decision, chain_hash)`. No randomness, no external calls.
 - **Hash-chained audit log.** Each entry pins the previous entry's hash;
   any byte-level mutation is detected by `aura-replay` (exit code `2`).
+- **Merkle batching (RFC 6962).** Contiguous slices of the audit log are
+  sealed into segment manifests with a Merkle root, a segment-chain
+  digest, and `O(log N)` inclusion proofs via `aura-seal`.
+- **Optional RFC 3161 timestamping.** Each sealed segment can be anchored
+  to a public or operator-pinned TSA. Off by default, fail-open on TSA
+  outages, no impact on the deterministic core.
 - **Signed policies.** Ed25519 signatures over policy YAML bytes; loader
   fails closed on missing or invalid signatures.
 - **Fail-closed startup.** Process exits with code `78` (`EX_CONFIG`)
@@ -36,7 +42,7 @@ input + signed policy  →  decision + chain_hash  →  append-only JSONL
 
 ## Quickstart
 
-Requires Rust 1.85+, `jq` for the smoke test, and (optionally) Docker.
+Requires Rust 1.86+, `jq` for the smoke test, and (optionally) Docker.
 
 ```bash
 git clone https://github.com/Aura-IDToken/aura-guard-v1.3.git
@@ -79,6 +85,9 @@ formula.
 | --- | --- |
 | Operator silently edits the audit log | SHA-256 hash chain → `CHAIN BREAK` at exit code `2` |
 | Operator silently relaxes a policy | Ed25519 signature required at load; policy hash is logged with every decision |
+| Forging or reordering segment manifests | Segment-chain self-hash + linkage → exit code `4` from `aura-seal` |
+| Replacing a manifest with a forged Merkle root | `aura-seal verify` compares the root against the audit log → exit code `5` |
+| Backdating a sealed manifest | Optional RFC 3161 stamp → `aura-seal verify-tst` exit code `6` |
 | Unauthorized API caller | API-key middleware with constant-time compare |
 | Oversized / slow request DoS | 64 KiB body limit, 5 s timeout (both configurable) |
 | Side-channel timing on the API key | Constant-time byte comparison |
@@ -147,6 +156,9 @@ OpenAPI 3.0 spec: [`docs/openapi.yaml`](docs/openapi.yaml).
 | `1` | runtime error | unexpected I/O failure, malformed log |
 | `2` | `CHAIN BREAK DETECTED` | `aura-replay` detected a mutated entry |
 | `3` | `LINEAGE MISMATCH` | `aura-replay --verify-lineage` saw an on-disk policy hash that no longer matches the logged provenance |
+| `4` | `SEGMENT CHAIN BREAK` | `aura-seal` / `aura-replay --verify-segments` detected a tampered or missing manifest |
+| `5` | `LOG/MANIFEST MISMATCH` | A manifest's Merkle root does not match the audit-log slice it claims to cover |
+| `6` | `TST INVALID` | `aura-seal verify-tst` saw a Time-Stamp Response that does not match the manifest |
 | `78` | `EX_CONFIG` | `aura-guard` refused to start — see structured `BOOT FAIL` log line |
 
 systemd: set `RestartPreventExitStatus=78` so a fail-closed boot stops the
@@ -221,6 +233,11 @@ All keys are environment variables prefixed `AURA_`.
 | `AURA_METRICS_ENABLED` | `true` | Enables `/metrics`. |
 | `AURA_ALLOWED_ORIGINS` | _(empty)_ | Comma-separated CORS allow-list. Empty = no CORS header (same-origin only). Wildcards intentionally unsupported. |
 | `AURA_LOG` | `info` | `tracing` filter (e.g. `aura_guard=debug`). |
+| `AURA_SEGMENTS_DIR` | `logs/segments` | Where segment manifests and `.tsr` files are written. |
+| `AURA_SEGMENT_SIZE` | `1000` | Entries per segment. `0` disables size-based sealing. |
+| `AURA_SEGMENT_INTERVAL_SECONDS` | `60` | Max wall-clock age of an open segment. `0` disables time-based sealing. |
+| `AURA_TSA_URL` | _(unset)_ | Optional RFC 3161 TSA endpoint. Unset = no network requests. |
+| `AURA_TSA_TIMEOUT_SECONDS` | `10` | HTTP timeout for TSA POSTs. |
 
 ---
 
@@ -247,7 +264,8 @@ Disclosure policy: [`SECURITY.md`](SECURITY.md).
 
 ```
 aura-guard          # HTTP server
-aura-replay         # offline chain + lineage verifier
+aura-replay         # offline chain + lineage + segment verifier
+aura-seal           # offline Merkle / segment-chain / TST verifier + proof generator
 aura-sign-policy    # Ed25519 keygen + policy signing
 ```
 
@@ -256,7 +274,18 @@ aura-sign-policy    # Ed25519 keygen + policy signing
 ```
 aura-replay --log logs/audit.jsonl                       # chain integrity (default)
 aura-replay --log logs/audit.jsonl --verify-lineage      # + policy-hash continuity
+aura-replay --log logs/audit.jsonl --verify-segments \
+            --segments-dir logs/segments                 # + segment-chain + Merkle
 aura-replay --log logs/audit.jsonl --json                # machine-readable output
+```
+
+`aura-seal` modes:
+
+```
+aura-seal verify-chain --segments logs/segments         # segment-chain linkage only
+aura-seal verify --log logs/audit.jsonl --segments logs/segments  # + Merkle vs. log
+aura-seal proof --log logs/audit.jsonl --segments logs/segments --seq N
+aura-seal verify-tst --segments logs/segments [--segment-id N]
 ```
 
 `--verify-lineage` reloads each policy YAML referenced by the log and
@@ -303,6 +332,7 @@ aura-guard-v1.3/
 | [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) | STRIDE-style threat catalog + mitigations. |
 | [`docs/policy-signing.md`](docs/policy-signing.md) | Ed25519 signing model, key custody, rotation. |
 | [`docs/REPLAY_DEMO.md`](docs/REPLAY_DEMO.md) | 5-minute hands-on replay & tamper demo. |
+| [`docs/segments-and-timestamping.md`](docs/segments-and-timestamping.md) | Merkle segments, manifest schema, RFC 3161 walkthrough. |
 | [`docs/exit-codes.md`](docs/exit-codes.md) | Canonical exit-code contract for supervisors. |
 | [`docs/deployment.md`](docs/deployment.md) | Docker / systemd / Kubernetes runbooks. |
 | [`docs/COMPLIANCE_BRIEF.md`](docs/COMPLIANCE_BRIEF.md) | EU AI Act / DORA / GDPR mapping. |
@@ -316,8 +346,8 @@ aura-guard-v1.3/
 | Release | Theme | Status |
 | --- | --- | --- |
 | v1.3 | Bootstrap fail-closed gate, lineage verification, distroless image | shipped |
-| v1.4 | Merkle batching + RFC 3161 timestamping, cosign release attestations, OTLP exporter | planned |
-| v1.5 | Helm chart, Kubernetes operator, HSM signing, RBAC | planned |
+| v1.4 | Merkle batching (RFC 6962) + optional RFC 3161 timestamping, `aura-seal` CLI | shipped |
+| v1.5 | Full PKIX `.tsr` verification, Helm chart, Kubernetes operator, HSM signing, cosign release attestations, OTLP exporter | planned |
 | v2.0 | Binary evidence envelope, cross-language verifiers, formal verification | planned |
 
 Full breakdown: [`docs/ROADMAP.md`](docs/ROADMAP.md).
