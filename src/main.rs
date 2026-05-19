@@ -16,12 +16,16 @@
 use std::process::ExitCode;
 use std::sync::Arc;
 
+use std::time::Duration;
+
 use aura_guard::api::{build_router, AppState, EXPECTED_POLICIES};
 use aura_guard::config::Config;
 use aura_guard::crypto::genesis_hash;
 use aura_guard::log_writer::LogWriter;
 use aura_guard::policy::{load_policy, CompiledPolicy, TrustedSigners};
+use aura_guard::sealer::{SealOutcome, SegmentSealer};
 use dashmap::DashMap;
+use tokio::sync::Notify;
 use tracing::{error, info, warn};
 use tracing_subscriber::EnvFilter;
 
@@ -118,15 +122,82 @@ async fn run() -> Result<(), BootError> {
         }
     }
 
+    // Construct the segment sealer (if either trigger is active) and prime
+    // it from any unsealed audit-log entries left over from a prior run.
+    let sealer = if config.segment_size > 0 || config.segment_interval_seconds > 0 {
+        let s = SegmentSealer::new(
+            config.segments_dir.clone(),
+            config.segment_size,
+            Duration::from_secs(config.segment_interval_seconds),
+        )
+        .map_err(|e| BootError::Config(format!("cannot initialize segment sealer: {e}")))?;
+        s.prime_from_log(&config.audit_log_path)
+            .map_err(|e| BootError::Config(format!("cannot prime segment sealer: {e}")))?;
+        info!(
+            segments_dir = %config.segments_dir.display(),
+            segment_size = config.segment_size,
+            segment_interval_seconds = config.segment_interval_seconds,
+            unsealed_entries = s.open_entry_count(),
+            next_segment_id = s.next_segment_id(),
+            "segment sealer initialized"
+        );
+        Some(s)
+    } else {
+        warn!(
+            "segment sealing disabled (AURA_SEGMENT_SIZE=0 and \
+             AURA_SEGMENT_INTERVAL_SECONDS=0)"
+        );
+        None
+    };
+
     let state = AppState {
         config: config.clone(),
         policies: Arc::new(policies),
         log: log.clone(),
         signers,
         enforce_signatures,
+        sealer: sealer.clone(),
     };
 
     let app = build_router(state);
+
+    // Background task: time-based segment sealing.
+    let shutdown = Arc::new(Notify::new());
+    let sealer_task = if let Some(sealer) = sealer.clone() {
+        let interval = Duration::from_secs(config.segment_interval_seconds.max(1));
+        let shutdown = shutdown.clone();
+        let cfg_for_task = config.clone();
+        Some(tokio::spawn(async move {
+            let mut ticker = tokio::time::interval(interval);
+            ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+            // Skip the immediate first tick (Tokio fires one at t=0).
+            ticker.tick().await;
+            loop {
+                tokio::select! {
+                    _ = ticker.tick() => {
+                        match sealer.try_seal_due_to_time() {
+                            Ok(SealOutcome::Sealed { segment_id, entry_count, tsa_work }) => {
+                                info!(segment_id, entry_count, "segment sealed (interval)");
+                                if let Some(work) = tsa_work {
+                                    aura_guard::sealer::maybe_spawn_tsa_submission(
+                                        &cfg_for_task, work);
+                                }
+                            }
+                            Ok(_) => {}
+                            Err(e) => {
+                                error!(error = %e, "interval-driven seal failed");
+                                metrics::counter!("aura_segments_seal_errors_total")
+                                    .increment(1);
+                            }
+                        }
+                    }
+                    _ = shutdown.notified() => break,
+                }
+            }
+        }))
+    } else {
+        None
+    };
 
     info!(
         bind = %config.bind,
@@ -145,6 +216,32 @@ async fn run() -> Result<(), BootError> {
         .with_graceful_shutdown(shutdown_signal())
         .await
         .map_err(|e| anyhow::anyhow!("axum serve error: {e}"))?;
+
+    // Stop the background sealer task and flush any in-flight segment.
+    shutdown.notify_waiters();
+    if let Some(handle) = sealer_task {
+        let _ = handle.await;
+    }
+    if let Some(sealer) = sealer {
+        match sealer.flush() {
+            Ok(SealOutcome::Sealed {
+                segment_id,
+                entry_count,
+                tsa_work,
+            }) => {
+                info!(segment_id, entry_count, "segment sealed (shutdown flush)");
+                if let Some(work) = tsa_work {
+                    aura_guard::sealer::maybe_spawn_tsa_submission(&config, work);
+                    // Best-effort: give the in-flight TSA POST a brief chance
+                    // to land before the runtime drops it (fail-open).
+                    tokio::time::sleep(Duration::from_secs(config.tsa_timeout_seconds.min(15)))
+                        .await;
+                }
+            }
+            Ok(_) => {}
+            Err(e) => error!(error = %e, "shutdown flush failed"),
+        }
+    }
 
     info!("Aura-Guard shutdown complete");
     Ok(())

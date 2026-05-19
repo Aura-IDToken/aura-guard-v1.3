@@ -15,10 +15,14 @@ pub mod crypto;
 pub mod engine;
 pub mod error;
 pub mod log_writer;
+pub mod merkle;
 pub mod metrics;
 pub mod models;
 pub mod normalizer;
 pub mod policy;
+pub mod rfc3161;
+pub mod sealer;
+pub mod segment;
 pub mod validators;
 
 pub mod api;

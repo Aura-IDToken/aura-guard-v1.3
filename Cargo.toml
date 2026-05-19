@@ -26,6 +26,10 @@ path = "src/bin/aura_replay.rs"
 name = "aura-sign-policy"
 path = "src/bin/aura_sign_policy.rs"
 
+[[bin]]
+name = "aura-seal"
+path = "src/bin/aura_seal.rs"
+
 [profile.release]
 lto = "fat"
 codegen-units = 1
@@ -83,6 +87,10 @@ clap = { version = "4", features = ["derive", "env"] }
 
 # Configuration
 figment = { version = "0.10", features = ["env", "toml"] }
+
+# HTTP client (blocking) — used only for optional RFC 3161 TSA POSTs.
+# Pure-Rust TLS (rustls); no system OpenSSL dependency.
+ureq = { version = "2.10", default-features = false, features = ["tls"] }
 
 [dev-dependencies]
 tokio-test = "0.4"

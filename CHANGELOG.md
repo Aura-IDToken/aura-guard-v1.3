@@ -6,6 +6,52 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — v1.4 (Merkle batching + optional RFC 3161 timestamping)
+- **`src/merkle.rs`** — RFC 6962 leaf/node hashing
+  (`SHA-256(0x00||leaf)`, `SHA-256(0x01||left||right)`), left-heavy
+  Merkle root, audit-path proof generation and verification. Independent
+  of every other subsystem; reusable from external verifiers.
+- **`src/segment.rs`** — Segment manifests
+  (`logs/segments/NNNNNN.manifest.json`). Each manifest pins a
+  contiguous slice of the audit log via its Merkle root, the previous
+  manifest's `segment_chain_hash`, and the head `chain_hash` at close.
+  Genesis seed: `SHA-256("AURA-GUARD-SEGMENT-GENESIS-v1")`. Manifests
+  are written atomically (temp → rename → fsync) and never re-opened.
+- **`src/sealer.rs`** — Runtime segment sealer with dual triggers
+  (`AURA_SEGMENT_SIZE` entry count and `AURA_SEGMENT_INTERVAL_SECONDS`
+  wall-clock) plus graceful shutdown flush. Crash-recovery primes the
+  open-segment buffer from any unsealed audit-log tail.
+- **`src/bin/aura-seal`** — Offline verifier and proof generator.
+  Subcommands: `verify`, `verify-chain`, `proof --seq N`,
+  `verify-tst [--segment-id N]`. Exit codes `4` (segment-chain break),
+  `5` (manifest/log mismatch), `6` (TST invalid).
+- **`aura-replay --verify-segments`** — Verifies both the per-entry
+  chain and the segment-chain in a single pass.
+- **`src/rfc3161.rs`** — Minimal hand-rolled DER encoder for
+  `TimeStampReq` (SHA-256). Optional RFC 3161 submission is **off by
+  default**; enable with `AURA_TSA_URL`. Submission runs on
+  `tokio::task::spawn_blocking`, persists the raw `TimeStampResp`
+  bytes to `logs/segments/NNNNNN.tsr`, and is **fail-open** —
+  transport errors, HTTP failures, and imprint mismatches are logged
+  and counted (`aura_tsa_request_failures_total`) but never halt the
+  service.
+- **Threat-model coverage**: detects single-entry tampering, sealed
+  manifest forgery, manifest deletion or reordering, manifest
+  backdating (when TSA stamping is enabled).
+- New configuration: `AURA_SEGMENTS_DIR`, `AURA_SEGMENT_SIZE` (default
+  `1000`, `0` disables), `AURA_SEGMENT_INTERVAL_SECONDS` (default
+  `60`, `0` disables), `AURA_TSA_URL` (unset by default),
+  `AURA_TSA_TIMEOUT_SECONDS` (default `10`).
+- New metrics: `aura_segments_sealed_total`,
+  `aura_segment_entries_total`, `aura_segments_open_entries`,
+  `aura_segments_seal_errors_total`, `aura_tsa_requests_total`,
+  `aura_tsa_request_failures_total`.
+- New dependency: `ureq` 2.10 with `rustls` (pure-Rust TLS, no system
+  OpenSSL). Pulled only when `AURA_TSA_URL` is set at runtime.
+- [`docs/segments-and-timestamping.md`](docs/segments-and-timestamping.md)
+  — Architecture, layout-on-disk, manifest schema, sealing triggers,
+  verifier walkthrough, threat-model addendum, metric reference.
+
 ### Changed
 - **CORS hardened to deny-by-default.** The runtime no longer emits
   `Access-Control-Allow-Origin: *`. Configure
@@ -24,11 +70,19 @@ versions follow [Semantic Versioning](https://semver.org/).
 ### Added
 - [`docs/exit-codes.md`](docs/exit-codes.md) — canonical exit-code
   contract for supervisors (systemd `RestartPreventExitStatus=78`,
-  Kubernetes CrashLoopBackOff guidance).
+  Kubernetes CrashLoopBackOff guidance), now including `4`/`5`/`6` for
+  the segment + TST verifiers.
 - [`docs/policy-signing.md`](docs/policy-signing.md) — Ed25519 key
   management, rotation, and multi-signer workflow notes.
 - [`docs/deployment.md`](docs/deployment.md) — Docker / systemd /
   Kubernetes runbooks and a hardening checklist.
+
+### Deferred to v1.5
+- Full ASN.1 parsing of `TSTInfo`, PKIX certificate-chain validation,
+  and signature verification of the TSA `SignedData`. `aura-seal
+  verify-tst` currently checks `messageImprint == SHA-256(preimage)`,
+  which is sufficient to detect bait-and-switch and post-stamp
+  tampering, but does not yet anchor trust in an operator-pinned root.
 
 ## [1.3.0] — 2026-05-12
 

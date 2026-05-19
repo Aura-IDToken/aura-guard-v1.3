@@ -37,6 +37,11 @@ fn build_state() -> (AppState, TempDir) {
         request_timeout_ms: 2_000,
         metrics_enabled: true,
         allowed_origins: Vec::new(),
+        segments_dir: tmp.path().join("segments"),
+        segment_size: 0,
+        segment_interval_seconds: 0,
+        tsa_url: None,
+        tsa_timeout_seconds: 10,
     };
 
     let signers = Arc::new(TrustedSigners::empty());
@@ -56,6 +61,7 @@ fn build_state() -> (AppState, TempDir) {
         log,
         signers,
         enforce_signatures: false,
+        sealer: None,
     };
     (state, tmp)
 }
@@ -297,4 +303,90 @@ async fn cors_allows_only_listed_origins() {
         resp.headers().get("access-control-allow-origin").is_none(),
         "untrusted origin must not get an allow-origin header",
     );
+}
+
+#[tokio::test]
+async fn segments_are_sealed_and_verifiable_end_to_end() {
+    // Build router with sealing enabled at size=2 and time=disabled, so two
+    // POSTs deterministically close a segment.
+    let tmp = TempDir::new().expect("tempdir");
+    let segments_dir = tmp.path().join("segments");
+    let cfg = Config {
+        bind: "127.0.0.1:0".parse().unwrap(),
+        api_key: Some("test-key".to_string()),
+        auth_disabled: false,
+        policies_dir: manifest_root().join("policies"),
+        trusted_signers_file: manifest_root().join("policies/trusted_signers.json"),
+        default_policy_set: "finance-v1".to_string(),
+        audit_log_path: tmp.path().join("audit.jsonl"),
+        max_body_bytes: 64 * 1024,
+        request_timeout_ms: 2_000,
+        metrics_enabled: true,
+        allowed_origins: Vec::new(),
+        segments_dir: segments_dir.clone(),
+        segment_size: 2,
+        segment_interval_seconds: 0,
+        tsa_url: None,
+        tsa_timeout_seconds: 10,
+    };
+
+    let signers = Arc::new(TrustedSigners::empty());
+    let log =
+        LogWriter::open(cfg.audit_log_path.clone(), &genesis_hash()).expect("opens fresh log");
+
+    let policies: DashMap<String, Arc<CompiledPolicy>> = DashMap::new();
+    for name in ["finance-v1", "medtech-v1", "hr-bias-v1"] {
+        let p = load_policy(name, &cfg.policies_dir, &signers, false).expect("policy loads");
+        policies.insert(name.to_string(), Arc::new(p));
+    }
+
+    let sealer = aura_guard::sealer::SegmentSealer::new(
+        segments_dir.clone(),
+        cfg.segment_size,
+        std::time::Duration::ZERO,
+    )
+    .expect("sealer builds");
+
+    let state = AppState {
+        config: Arc::new(cfg),
+        policies: Arc::new(policies),
+        log,
+        signers,
+        enforce_signatures: false,
+        sealer: Some(sealer),
+    };
+    let app = build_router(state);
+
+    for i in 0..4 {
+        let body = serde_json::json!({
+            "context": "test",
+            "payload": {"prompt": format!("p-{i}"), "response": format!("r-{i}")},
+        });
+        let (status, _) = post_json(app.clone(), "/v1/audit", Some("test-key"), body).await;
+        assert_eq!(status, StatusCode::OK);
+    }
+
+    let manifests = aura_guard::segment::load_manifests(&segments_dir).expect("load manifests");
+    assert_eq!(
+        manifests.len(),
+        2,
+        "two segments should be sealed by size threshold"
+    );
+    aura_guard::segment::verify_segment_chain(&manifests).expect("segment chain verifies");
+
+    let log_path = manifests[0].clone();
+    let _ = log_path; // dead-line tip: avoid clippy::unused
+
+    let entries = aura_guard::log_writer::read_all_entries(std::path::Path::new(&format!(
+        "{}/audit.jsonl",
+        tmp.path().display()
+    )))
+    .expect("read entries");
+    assert_eq!(entries.len(), 4);
+    for m in &manifests {
+        let first = m.first_seq as usize;
+        let last = m.last_seq as usize;
+        aura_guard::segment::verify_manifest_against_entries(m, &entries[first..=last])
+            .expect("manifest matches entries");
+    }
 }

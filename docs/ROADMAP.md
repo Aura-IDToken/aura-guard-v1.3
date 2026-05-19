@@ -22,28 +22,42 @@ out of scope for v1.3 to keep the deterministic core small and reviewable.
   / `cargo-deny` / CycloneDX SBOM artifact.
 * 21 unit + 2 bootstrap fail-closed + 10 golden + 6 HTTP integration tests.
 
-## v1.4 — Evidence anchoring (Q3 2026)
+## Shipped in v1.4 — Evidence anchoring
 
-* **Merkle batching** — every N entries the chain produces a Merkle root that
-  can be anchored to an external trust store.
+* **Merkle batching (RFC 6962)** — contiguous slices of the audit log are
+  sealed into segment manifests with a left-heavy Merkle root and
+  inclusion proofs in `O(log N)`.
+* **Segment-chain** — each manifest pins the previous manifest's hash,
+  closing the gap between per-entry tampering (already detected) and
+  manifest-level tampering (deletion, reordering, forged replacement).
+* **`aura-seal` CLI** — offline `verify`, `verify-chain`, `proof`,
+  `verify-tst`. Exit codes `4` / `5` / `6` for segment-chain break,
+  log/manifest mismatch, and TST invalid.
+* **Optional RFC 3161 timestamping** — opt-in via `AURA_TSA_URL`,
+  fail-open on TSA outages, Prometheus `aura_tsa_requests_total` and
+  `aura_tsa_request_failures_total`. Off by default to keep the
+  deterministic core network-free.
+
+## v1.5 — Enterprise & ops
+
+* **Full `.tsr` verification** — ASN.1 parse of `TSTInfo`, PKIX chain
+  validation against an operator-pinned TSA root, `SignedData`
+  signature verification. v1.4 currently only checks
+  `messageImprint == SHA-256(preimage)`.
 * **cosign / sigstore** release attestations for both the binary and the SBOM.
-* **Trusted timestamping** (RFC 3161) on the daily Merkle root.
 * **OpenTelemetry** spans / OTLP exporter alongside the existing tracing JSON.
 * **mTLS** termination inside `axum` (currently delegated to the reverse proxy).
-* **Encrypted Evidence Vault** — optional sealed store for raw prompts so a
-  new `aura-replay --re-evaluate` mode can reproduce the full model
-  decision while preserving GDPR data minimization at rest. (Today's
-  `--verify-lineage` only proves policy-hash continuity, not model output;
-  the rename was made specifically to stop overpromising on that front.)
-
-## v1.5 — Enterprise & ops (Q4 2026)
-
 * **Helm chart** + **Kubernetes operator** for declarative deployment.
 * **RBAC** on policy management endpoints, multi-tenant policy directories.
 * **HA clustering** with synchronized chain heads (gossip + leader election).
 * **SIEM connectors** — Splunk HEC, Elastic Common Schema, AWS CloudTrail
   format adapters.
 * **HSM signing** for policy keys (PKCS#11).
+* **Encrypted Evidence Vault** — optional sealed store for raw prompts so a
+  new `aura-replay --re-evaluate` mode can reproduce the full model
+  decision while preserving GDPR data minimization at rest. (Today's
+  `--verify-lineage` only proves policy-hash continuity, not model output;
+  the rename was made specifically to stop overpromising on that front.)
 
 ## v1.6 — Governance platform (2027)
 

@@ -31,6 +31,7 @@ use std::process::ExitCode;
 use aura_guard::chain::verify_chain;
 use aura_guard::log_writer::read_all_entries;
 use aura_guard::policy::{load_policy, TrustedSigners};
+use aura_guard::segment::{load_manifests, verify_manifest_against_entries, verify_segment_chain};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -68,6 +69,14 @@ struct Args {
     /// the signer keys are unavailable).
     #[arg(long)]
     no_signature_verify: bool,
+
+    /// Also verify Merkle segment manifests against the audit log.
+    #[arg(long)]
+    verify_segments: bool,
+
+    /// Directory containing `*.manifest.json` files (used with `--verify-segments`).
+    #[arg(long, default_value = "logs/segments")]
+    segments_dir: PathBuf,
 
     /// Emit machine-readable JSON only (no human-readable banner).
     #[arg(long)]
@@ -148,18 +157,70 @@ fn main() -> ExitCode {
         }
     }
 
+    // Optional Merkle segment verification.
+    let mut segments_head: Option<String> = None;
+    let mut segment_count = 0usize;
+    if args.verify_segments {
+        let manifests = match load_manifests(&args.segments_dir) {
+            Ok(m) => m,
+            Err(e) => {
+                eprintln!(
+                    "FAIL: cannot load segment manifests from '{}': {e}",
+                    args.segments_dir.display()
+                );
+                return ExitCode::from(1);
+            }
+        };
+        segment_count = manifests.len();
+        match verify_segment_chain(&manifests) {
+            Ok(h) => segments_head = Some(h),
+            Err(e) => {
+                eprintln!("FAIL: SEGMENT CHAIN BREAK: {e}");
+                return ExitCode::from(4);
+            }
+        }
+        for m in &manifests {
+            let first = m.first_seq as usize;
+            let last = m.last_seq as usize;
+            if last >= entries.len() {
+                eprintln!(
+                    "FAIL: segment {} references entries [{first}, {last}] \
+                     but log has only {} entries",
+                    m.segment_id,
+                    entries.len()
+                );
+                return ExitCode::from(5);
+            }
+            if let Err(e) = verify_manifest_against_entries(m, &entries[first..=last]) {
+                eprintln!("FAIL: {e}");
+                return ExitCode::from(5);
+            }
+        }
+    }
+
     if args.json {
         let out = serde_json::json!({
             "status": "ok",
             "entries": entries.len(),
             "head_chain_hash": head,
             "verified_lineage": verify_lineage,
+            "verified_segments": args.verify_segments,
+            "segments": segment_count,
+            "head_segment_chain_hash": segments_head,
         });
         println!("{}", out);
     } else {
         println!("CHAIN OK — head_chain_hash: {head}");
         if verify_lineage {
             println!("LINEAGE OK — every policy_hash on disk matches the logged provenance");
+        }
+        if args.verify_segments {
+            match segments_head {
+                Some(ref h) => println!(
+                    "SEGMENTS OK — {segment_count} manifest(s), head_segment_chain_hash: {h}"
+                ),
+                None => println!("SEGMENTS OK — 0 manifest(s) on disk"),
+            }
         }
     }
     ExitCode::SUCCESS

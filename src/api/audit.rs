@@ -91,6 +91,29 @@ pub async fn handle_audit(
         (StatusCode::SERVICE_UNAVAILABLE, e.to_string())
     })?;
 
+    // Notify the segment sealer (fail-open: a sealer error is logged but
+    // does not poison the audit response — the entry itself is already
+    // durably committed and the chain remains verifiable).
+    if let Some(sealer) = &state.sealer {
+        match sealer.observe(&entry) {
+            Ok(crate::sealer::SealOutcome::Sealed {
+                segment_id,
+                entry_count,
+                tsa_work,
+            }) => {
+                tracing::info!(segment_id, entry_count, "segment sealed (size threshold)");
+                if let Some(work) = tsa_work {
+                    crate::sealer::maybe_spawn_tsa_submission(&state.config, work);
+                }
+            }
+            Ok(_) => {}
+            Err(e) => {
+                tracing::error!(error = %e, "segment sealer error");
+                metrics::counter!("aura_segments_seal_errors_total").increment(1);
+            }
+        }
+    }
+
     // Metrics.
     metrics::counter!(
         "aura_guard_decisions_total",

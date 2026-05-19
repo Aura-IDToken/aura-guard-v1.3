@@ -19,6 +19,7 @@ use crate::auth::require_api_key;
 use crate::config::Config;
 use crate::log_writer::LogWriter;
 use crate::policy::{CompiledPolicy, TrustedSigners};
+use crate::sealer::SegmentSealer;
 
 /// Canonical list of policy packs that **must** load successfully at boot.
 ///
@@ -41,6 +42,9 @@ pub struct AppState {
     pub signers: Arc<TrustedSigners>,
     /// Whether policy-signature enforcement is active.
     pub enforce_signatures: bool,
+    /// Optional segment sealer. `None` only when both size-based and time-
+    /// based sealing are disabled in configuration.
+    pub sealer: Option<SegmentSealer>,
 }
 
 /// Build the public Axum router with all middleware layers attached.
