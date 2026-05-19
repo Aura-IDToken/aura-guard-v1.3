@@ -5,7 +5,7 @@ by our [Code of Conduct](https://www.contributor-covenant.org/).
 
 ## Development environment
 
-* Rust 1.85+ (stable).
+* Rust 1.86+ (stable).
 * `pre-commit` (optional) for local hook runs.
 * Docker (optional) for the distroless image.
 

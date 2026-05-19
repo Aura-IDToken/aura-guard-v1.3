@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.85.0
+      - uses: dtolnay/rust-toolchain@1.86.0
         with:
           components: rustfmt
       - run: cargo fmt --all -- --check
@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.85.0
+      - uses: dtolnay/rust-toolchain@1.86.0
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
@@ -36,14 +36,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.85.0
+      - uses: dtolnay/rust-toolchain@1.86.0
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --locked --release --all-targets
       - run: cargo test --locked --all-targets
 
   # cargo-{audit,deny,cyclonedx} track current stable rustc; using @stable
   # here is intentional. The MSRV guarantee for the *crate itself* is
-  # enforced by the fmt/clippy/test jobs which pin to 1.85.0.
+  # enforced by the fmt/clippy/test jobs which pin to 1.86.0.
   audit:
     name: cargo-audit
     runs-on: ubuntu-latest
