@@ -1,0 +1,14 @@
+{
+  "schema": "aura-guard.segment.v1",
+  "segment_id": 2,
+  "first_seq": 2,
+  "last_seq": 3,
+  "entry_count": 2,
+  "merkle_root": "5a3ec49ebf7bcaa667e32e9192129d495ff63ba75f14d86ff0378977b1fd3190",
+  "prev_merkle_root": "0813149de13e4fc087275ca5f656249cee00000d12560e7a82ebbb118888ba43",
+  "prev_segment_chain_hash": "67b555ea7003a90becc228e4c35a7a1191d1cb42a7827b8305753c9e312a3195",
+  "segment_chain_hash": "c1c7f5757f939e640ee7b494123223e88f21a45743849f259472ff69110e7bf3",
+  "head_chain_hash_at_close": "619ee98b70d5507740ba52387c803ee6c65585725e621602fde775cd177369af",
+  "sealed_at": "2026-05-20T20:22:47.572342873+00:00",
+  "tst_path": null
+}

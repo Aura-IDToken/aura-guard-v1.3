@@ -92,6 +92,19 @@ figment = { version = "0.10", features = ["env", "toml"] }
 # Pure-Rust TLS (rustls); no system OpenSSL dependency.
 ureq = { version = "2.10", default-features = false, features = ["tls"] }
 
+# RFC 3161 / CMS / PKIX verification stack. Pure-Rust, RustCrypto-curated.
+# Used only by `aura-seal verify-tst` in strict mode (operator-pinned roots).
+cms = { version = "0.2", default-features = false, features = ["std", "pem"] }
+x509-cert = { version = "0.2", default-features = false, features = ["std", "pem"] }
+spki = { version = "0.7", default-features = false, features = ["std"] }
+der = { version = "0.7", default-features = false, features = ["std", "oid"] }
+const-oid = { version = "0.9", default-features = false, features = ["std", "db"] }
+rsa = { version = "0.9", default-features = false, features = ["std", "sha2"] }
+p256 = { version = "0.13", default-features = false, features = ["std", "ecdsa", "pkcs8"] }
+p384 = { version = "0.13", default-features = false, features = ["std", "ecdsa", "pkcs8"] }
+ecdsa = { version = "0.16", default-features = false, features = ["der"] }
+signature = "2"
+
 [dev-dependencies]
 tokio-test = "0.4"
 tower = { version = "0.5", features = ["util"] }
