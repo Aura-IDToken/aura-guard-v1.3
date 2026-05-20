@@ -32,6 +32,7 @@ use aura_guard::segment::{
     entry_leaf_hash, load_manifests, verify_manifest_against_entries, verify_segment_chain,
     SegmentManifest,
 };
+use aura_guard::tst_verify::{verify_tsr, TrustAnchors};
 use sha2::{Digest, Sha256};
 
 const EX_CHAIN_BREAK: u8 = 4;
@@ -84,12 +85,17 @@ enum Cmd {
         #[arg(long)]
         seq: u64,
     },
-    /// Verify an RFC 3161 Time-Stamp Response (`NNNNNN.tsr`) by checking
-    /// that its `messageImprint` field equals
-    /// `SHA-256(segment_chain_preimage)` of the matching manifest.
+    /// Verify an RFC 3161 Time-Stamp Response (`NNNNNN.tsr`).
     ///
-    /// Note: v1.4 ships imprint verification only. Full PKIX/SignedData
-    /// validation against an operator-pinned TSA root lands in v1.5.
+    /// In **strict mode** (`--tsa-roots` provided), this verifies the
+    /// full RFC 3161 / RFC 5652 token: messageImprint, SignerInfo
+    /// signature, signingCertificate(V2) binding, certificate chain to a
+    /// pinned trust anchor, EKU `id-kp-timeStamping`, and genTime within
+    /// the signer certificate's validity window.
+    ///
+    /// Without `--tsa-roots`, only the messageImprint is checked (the
+    /// v1.4 backward-compatible mode); a one-line warning is emitted on
+    /// stderr to make the operational posture explicit.
     VerifyTst {
         /// Directory containing `*.manifest.json` and `*.tsr` files.
         #[arg(long, default_value = "logs/segments")]
@@ -97,6 +103,10 @@ enum Cmd {
         /// Segment id to verify; omit to verify all `.tsr` files present.
         #[arg(long)]
         segment_id: Option<u64>,
+        /// PEM bundle of pinned TSA trust anchors. Enables strict PKIX
+        /// verification. Omit to run in legacy imprint-only mode.
+        #[arg(long)]
+        tsa_roots: Option<PathBuf>,
         /// Emit machine-readable JSON only.
         #[arg(long)]
         json: bool,
@@ -116,8 +126,9 @@ fn main() -> ExitCode {
         Cmd::VerifyTst {
             segments,
             segment_id,
+            tsa_roots,
             json,
-        } => cmd_verify_tst(segments, segment_id, json),
+        } => cmd_verify_tst(segments, segment_id, tsa_roots, json),
     }
 }
 
@@ -321,7 +332,12 @@ fn cmd_proof(log: PathBuf, segments: PathBuf, seq: u64) -> ExitCode {
     ExitCode::SUCCESS
 }
 
-fn cmd_verify_tst(segments: PathBuf, segment_id: Option<u64>, json: bool) -> ExitCode {
+fn cmd_verify_tst(
+    segments: PathBuf,
+    segment_id: Option<u64>,
+    tsa_roots: Option<PathBuf>,
+    json: bool,
+) -> ExitCode {
     let manifests = match load_manifests(&segments) {
         Ok(m) => m,
         Err(e) => {
@@ -330,6 +346,27 @@ fn cmd_verify_tst(segments: PathBuf, segment_id: Option<u64>, json: bool) -> Exi
                 segments.display()
             );
             return ExitCode::from(1);
+        }
+    };
+
+    let anchors = match tsa_roots.as_ref() {
+        Some(path) => match TrustAnchors::from_pem_file(path) {
+            Ok(a) => Some(a),
+            Err(e) => {
+                eprintln!(
+                    "error: cannot load trust anchors from '{}': {e}",
+                    path.display()
+                );
+                return ExitCode::from(1);
+            }
+        },
+        None => {
+            eprintln!(
+                "warning: imprint-only verification (no --tsa-roots provided); \
+                 messageImprint will be checked but the TSA signature, certificate \
+                 chain, and EKU will not be validated."
+            );
+            None
         }
     };
 
@@ -359,20 +396,37 @@ fn cmd_verify_tst(segments: PathBuf, segment_id: Option<u64>, json: bool) -> Exi
             }));
             continue;
         }
-        match verify_one_tst(m, &tsr_path) {
-            Ok(()) => {
+        match verify_one_tst(m, &tsr_path, anchors.as_ref()) {
+            Ok(report) => {
                 checked += 1;
                 if !json {
                     println!(
-                        "seg {:06}  TST OK   ({} bytes)",
+                        "seg {:06}  TST OK   ({} bytes){}",
                         m.segment_id,
-                        std::fs::metadata(&tsr_path).map(|m| m.len()).unwrap_or(0)
+                        std::fs::metadata(&tsr_path).map(|m| m.len()).unwrap_or(0),
+                        if let Some(r) = report.as_ref() {
+                            format!("  policy={}  signer=\"{}\"", r.policy_oid, r.signer_subject)
+                        } else {
+                            String::new()
+                        }
                     );
                 }
-                results.push(serde_json::json!({
+                let mut row = serde_json::json!({
                     "segment_id": m.segment_id,
                     "status": "ok",
-                }));
+                    "mode": if anchors.is_some() { "strict" } else { "imprint-only" },
+                });
+                if let Some(r) = report {
+                    row["policy_oid"] = serde_json::Value::String(r.policy_oid);
+                    row["signer_subject"] = serde_json::Value::String(r.signer_subject);
+                    row["root_subject"] = serde_json::Value::String(r.root_subject);
+                    row["gen_time_unix"] = serde_json::json!(r
+                        .gen_time
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0));
+                }
+                results.push(row);
             }
             Err(e) => {
                 if !json {
@@ -381,11 +435,13 @@ fn cmd_verify_tst(segments: PathBuf, segment_id: Option<u64>, json: bool) -> Exi
                 results.push(serde_json::json!({
                     "segment_id": m.segment_id,
                     "status": "fail",
-                    "error": e,
+                    "mode": if anchors.is_some() { "strict" } else { "imprint-only" },
+                    "failure_reason": e,
                 }));
                 if json {
                     let out = serde_json::json!({
                         "status": "fail",
+                        "mode": if anchors.is_some() { "strict" } else { "imprint-only" },
                         "checked": checked,
                         "missing": missing,
                         "results": results,
@@ -407,6 +463,7 @@ fn cmd_verify_tst(segments: PathBuf, segment_id: Option<u64>, json: bool) -> Exi
     if json {
         let out = serde_json::json!({
             "status": "ok",
+            "mode": if anchors.is_some() { "strict" } else { "imprint-only" },
             "checked": checked,
             "missing": missing,
             "results": results,
@@ -414,14 +471,23 @@ fn cmd_verify_tst(segments: PathBuf, segment_id: Option<u64>, json: bool) -> Exi
         println!("{out}");
     } else {
         println!(
-            "\nTST summary: {checked} OK, {missing} missing (out of {} manifest(s))",
-            manifests.len()
+            "\nTST summary: {checked} OK, {missing} missing (out of {} manifest(s)) [{}]",
+            manifests.len(),
+            if anchors.is_some() {
+                "strict PKIX"
+            } else {
+                "imprint-only"
+            }
         );
     }
     ExitCode::SUCCESS
 }
 
-fn verify_one_tst(m: &SegmentManifest, tsr_path: &std::path::Path) -> Result<(), String> {
+fn verify_one_tst(
+    m: &SegmentManifest,
+    tsr_path: &std::path::Path,
+    anchors: Option<&TrustAnchors>,
+) -> Result<Option<aura_guard::tst_verify::VerifiedTst>, String> {
     let tsr =
         std::fs::read(tsr_path).map_err(|e| format!("cannot read {}: {e}", tsr_path.display()))?;
     let preimage = SegmentManifest::segment_chain_preimage(
@@ -432,12 +498,21 @@ fn verify_one_tst(m: &SegmentManifest, tsr_path: &std::path::Path) -> Result<(),
         &m.sealed_at,
     );
     let digest: [u8; 32] = Sha256::digest(preimage.as_bytes()).into();
-    if !contains_imprint(&tsr, &digest) {
-        return Err(format!(
-            "TSR messageImprint does not match SHA-256(segment_chain_preimage); \
-             expected imprint = {}",
-            hex::encode(digest)
-        ));
+
+    match anchors {
+        Some(roots) => {
+            let verified = verify_tsr(&tsr, &digest, roots).map_err(|e| e.to_string())?;
+            Ok(Some(verified))
+        }
+        None => {
+            if !contains_imprint(&tsr, &digest) {
+                return Err(format!(
+                    "TSR messageImprint does not match SHA-256(segment_chain_preimage); \
+                     expected imprint = {}",
+                    hex::encode(digest)
+                ));
+            }
+            Ok(None)
+        }
     }
-    Ok(())
 }

@@ -38,12 +38,20 @@ out of scope for v1.3 to keep the deterministic core small and reviewable.
   `aura_tsa_request_failures_total`. Off by default to keep the
   deterministic core network-free.
 
-## v1.5 — Enterprise & ops
+## Shipped in v1.5 — Strict RFC 3161 verification
 
-* **Full `.tsr` verification** — ASN.1 parse of `TSTInfo`, PKIX chain
-  validation against an operator-pinned TSA root, `SignedData`
-  signature verification. v1.4 currently only checks
-  `messageImprint == SHA-256(preimage)`.
+* **Full `.tsr` verification** — ASN.1 parse of `TimeStampResp`,
+  `SignedData`, and `TSTInfo`; PKIX chain validation against an
+  operator-pinned TSA root; SignerInfo signature verification
+  (RSA-PKCS1-v1.5 / ECDSA P-256 / ECDSA P-384); `signingCertificate(V2)`
+  binding check; `id-kp-timeStamping` EKU; `genTime` inside signer-cert
+  validity. Pure-Rust (`cms` + `x509-cert` + RustCrypto), offline (no
+  CRL/OCSP). New CLI flag: `aura-seal verify-tst --tsa-roots <bundle.pem>`.
+* **Backward-compat** — `aura-seal verify-tst` without `--tsa-roots`
+  keeps the v1.4 imprint-only behaviour and emits a stderr warning.
+
+## v1.6 — Enterprise & ops
+
 * **cosign / sigstore** release attestations for both the binary and the SBOM.
 * **OpenTelemetry** spans / OTLP exporter alongside the existing tracing JSON.
 * **mTLS** termination inside `axum` (currently delegated to the reverse proxy).
@@ -59,7 +67,7 @@ out of scope for v1.3 to keep the deterministic core small and reviewable.
   `--verify-lineage` only proves policy-hash continuity, not model output;
   the rename was made specifically to stop overpromising on that front.)
 
-## v1.6 — Governance platform (2027)
+## v1.7 — Governance platform (2027)
 
 * Policy approval workflows (4-eye review).
 * Human-review queue UI for `REVIEW` decisions.

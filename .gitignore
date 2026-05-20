@@ -21,3 +21,9 @@
 /logs/segments/*.manifest.json
 /logs/segments/*.tsr
 /logs/segments/*.tmp
+
+# Test fixtures committed for the RFC 3161 verifier need to bypass the
+# blanket `*.pem` / `*.tsr` ignore rules above.
+!tests/fixtures/tsa/*.pem
+!tests/fixtures/tsa/*.crt
+!tests/fixtures/tsa/*.tsr

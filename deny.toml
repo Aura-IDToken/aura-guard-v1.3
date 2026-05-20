@@ -3,7 +3,17 @@ all-features = true
 no-default-features = false
 
 [advisories]
-ignore = []
+ignore = [
+  # RUSTSEC-2023-0071 (Marvin Attack) — non-constant-time RSA *private* key
+  # operations in `rsa` 0.9. We use `rsa` only for **signature verification**
+  # in `src/tst_verify.rs` (RFC 3161 SignerInfo over TSA-issued tokens).
+  # Verification touches the signer's *public* key, never a private key, so
+  # the side-channel that the advisory describes is not reachable from this
+  # codebase. The only safer alternative today is dynamically linking
+  # OpenSSL, which `deny.toml` explicitly forbids. Re-evaluate when a
+  # constant-time RustCrypto release ships.
+  "RUSTSEC-2023-0071",
+]
 yanked = "deny"
 
 [licenses]
