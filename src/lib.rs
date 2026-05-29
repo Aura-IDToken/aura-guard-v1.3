@@ -23,6 +23,7 @@ pub mod policy;
 pub mod rfc3161;
 pub mod sealer;
 pub mod segment;
+pub mod tst_verify;
 pub mod validators;
 
 pub mod api;

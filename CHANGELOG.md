@@ -6,6 +6,61 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — v1.5 (Strict RFC 3161 PKIX / SignedData verification)
+- **`src/tst_verify.rs`** — Full RFC 3161 / RFC 5652 token validator.
+  Decodes `TimeStampResp`, `SignedData`, and the encapsulated `TSTInfo`
+  using the RustCrypto stack (`cms`, `x509-cert`, `der`, `rsa`, `p256`,
+  `p384`). Verifies:
+  - `PKIStatusInfo.status` is `granted` or `grantedWithMods`.
+  - `eContentType = id-ct-TSTInfo` (1.2.840.113549.1.9.16.1.4) and
+    exactly one `SignerInfo`.
+  - `TSTInfo.version = 1` and
+    `messageImprint == SHA-256(segment_chain_preimage)`.
+  - `id-aa-contentType` and `id-aa-messageDigest` signed attributes.
+  - `signingCertificate` (RFC 2634, SHA-1) or `signingCertificateV2`
+    (RFC 5816, SHA-256+) binds the SignerInfo's signer certificate —
+    anti-substitution per RFC 5816 §3.
+  - SignerInfo signature over a re-encoded `SET OF` of `signedAttrs`
+    (RFC 5652 §5.4): RSA-PKCS1-v1.5 (SHA-256/-384/-512), ECDSA on
+    P-256 (SHA-256/-384/-512), ECDSA on P-384 (SHA-256/-384/-512).
+  - Certificate chain terminates at an operator-pinned trust anchor
+    (raw DER equality). Self-signed certificates outside the pinned
+    set are rejected.
+  - Signer certificate carries the `id-kp-timeStamping` Extended Key
+    Usage (1.3.6.1.5.5.7.3.8) per RFC 3161 §2.3.
+  - `genTime` falls inside the signer certificate's validity window.
+  - The verifier is offline-only — no CRL/OCSP, no network I/O.
+    Revocation is enforced operationally by rotating the pinned bundle.
+- **`aura-seal verify-tst --tsa-roots <bundle.pem>`** — Strict mode.
+  Loads operator-pinned roots from a PEM bundle and runs the full
+  validator. JSON output (`--json`) emits per-segment
+  `policy_oid`, `signer_subject`, `root_subject`, `gen_time_unix`, and
+  `failure_reason` on failure. Exit code `6` for any verification
+  failure with a concrete reason.
+- **Backward-compat (imprint-only mode)** — Without `--tsa-roots`,
+  `aura-seal verify-tst` keeps the v1.4 behaviour (messageImprint
+  check only) and emits a one-line stderr warning so the operational
+  posture is explicit.
+- **Test fixtures** under `tests/fixtures/tsa/`:
+  - `freetsa-cacert.pem` — Real FreeTSA root CA.
+  - `freetsa-tsa.crt` — Real FreeTSA signing certificate.
+  - `segment-{001,002}.{manifest.json,tsr}` — Real round-tripped TSRs
+    captured against `https://freetsa.org/tsr`.
+- **Integration tests** in `tests/tst_verify.rs` (9 new tests): valid
+  TSR strict-verify, wrong imprint, tampered SignedData, truncated /
+  empty input, unreachable chain, malformed PEM.
+- New dependencies (RustCrypto, all MIT/Apache-2.0, pure-Rust):
+  `cms` 0.2, `x509-cert` 0.2, `der` 0.7, `const-oid` 0.9, `spki` 0.7,
+  `rsa` 0.9, `p256` 0.13, `p384` 0.13, `ecdsa` 0.16, `signature` 2.
+
+### Documentation
+- `docs/segments-and-timestamping.md`: new "Strict verification (v1.5)"
+  section with full algorithm, supported signatures, and operator
+  workflow for pinning + rotating trust anchors.
+- `docs/exit-codes.md`: exit code `6` clarified to cover the full set
+  of strict-mode failure modes.
+- README features section and config table reference strict PKIX mode.
+
 ### Added — v1.4 (Merkle batching + optional RFC 3161 timestamping)
 - **`src/merkle.rs`** — RFC 6962 leaf/node hashing
   (`SHA-256(0x00||leaf)`, `SHA-256(0x01||left||right)`), left-heavy

@@ -112,28 +112,86 @@ and missing `messageImprint` echoes are logged + counted via
 sealed manifest itself remains valid. Operators who require strict
 timestamp coverage can alert on the counter and re-stamp gaps offline.
 
-### What v1.4 ships
+### Issuance pipeline (v1.4)
 
-- Hand-rolled DER encoder for `TimeStampReq` (RFC 3161 § 2.4.1).
+- Hand-rolled DER encoder for `TimeStampReq` (RFC 3161 §2.4.1).
 - Blocking HTTP submission via `ureq` (pure-Rust TLS via `rustls`).
 - Opaque persistence of the `TimeStampResp` bytes.
-- Verifier: `aura-seal verify-tst` confirms that the
-  `messageImprint` octet string inside the TSR equals
-  `SHA-256(segment_chain_preimage)` of the matching manifest. This detects
-  bait-and-switch (TSA stamping the wrong digest) and detects tampering
-  with the manifest after stamping.
 
-### What is intentionally deferred (v1.5)
+### Strict verification (v1.5)
 
-- Full ASN.1 parsing of `TSTInfo`.
-- PKIX certificate-chain validation against an operator-pinned TSA root.
-- Signature verification of the TSA `SignedData`.
+`aura-seal verify-tst --tsa-roots <operator-pinned-bundle.pem>` runs the
+full RFC 3161 / RFC 5652 token validation:
 
-These are real value, but they require a non-trivial ASN.1 stack and an
-operator workflow for pinning + rotating roots. Keeping them out of v1.4
-preserves the deterministic Merkle layer's "no new external dependencies"
-property and lets early integrators evaluate the segment design without
-also evaluating a PKIX implementation.
+1. Decode the outer `TimeStampResp` and check
+   `PKIStatusInfo.status \u2208 {granted (0), grantedWithMods (1)}`.
+2. Decode the inner CMS `SignedData`. Require `eContentType =
+   id-ct-TSTInfo` (1.2.840.113549.1.9.16.1.4) and exactly one
+   `SignerInfo`.
+3. Decode the encapsulated `TSTInfo`. Require `version = 1` and
+   `messageImprint == SHA-256(segment_chain_preimage)`. The expected
+   imprint is recomputed from the matching manifest at verify time, so
+   a TSR that has been swapped onto the wrong manifest is rejected.
+4. Verify the `id-aa-contentType` and `id-aa-messageDigest` signed
+   attributes. The latter must equal `digestAlg(eContent.value)` —
+   any post-stamp mutation of the TSTInfo bytes breaks this check.
+5. Verify the `signingCertificate` (RFC 2634, SHA-1) or
+   `signingCertificateV2` (RFC 5816, SHA-256+) signed attribute against
+   the SignerInfo's signer certificate — anti-substitution per
+   RFC 5816 §3.
+6. Re-encode `signedAttrs` as `SET OF` (per RFC 5652 §5.4), hash it,
+   and verify the SignerInfo signature using the signer certificate's
+   subjectPublicKey. Supported signature algorithms: RSA-PKCS1-v1.5
+   with SHA-256/-384/-512, ECDSA on P-256 with SHA-256/-384/-512,
+   ECDSA on P-384 with SHA-256/-384/-512.
+7. Walk the certificate chain from the signer up through the embedded
+   intermediate(s) until it terminates at one of the operator-pinned
+   trust anchors loaded from the PEM bundle. The verifier fails if the
+   chain reaches a self-signed certificate that is **not** in the
+   pinned set.
+8. Require the signer certificate to carry the
+   `id-kp-timeStamping` Extended Key Usage
+   (1.3.6.1.5.5.7.3.8) per RFC 3161 §2.3.
+9. Require `genTime` to fall inside the signer certificate's
+   `notBefore..notAfter` window.
+
+The verifier is offline-only: it never opens a network socket and does
+not perform CRL or OCSP lookups. Revocation is operationally enforced
+by rotating the pinned trust-anchor bundle. Pure-Rust crates only
+(`cms`, `x509-cert`, `der`, `rsa`, `p256`, `p384`).
+
+### Backward-compatible imprint-only mode
+
+`aura-seal verify-tst` without `--tsa-roots` performs only the
+messageImprint check (the v1.4 behaviour). The CLI prints a one-line
+stderr warning to make the operational posture explicit:
+
+```
+warning: imprint-only verification (no --tsa-roots provided);
+         messageImprint will be checked but the TSA signature,
+         certificate chain, and EKU will not be validated.
+```
+
+This is appropriate for early integrators who have not yet pinned a
+TSA root. The strict mode is the production default.
+
+### Operator workflow: pinning trust anchors
+
+1. Download the root certificate(s) for every TSA you intend to use
+   (e.g. `https://freetsa.org/files/cacert.pem`).
+2. Concatenate them into a single PEM bundle:
+   ```bash
+   cat freetsa-cacert.pem digicert-tsa-root.pem > /etc/aura-guard/tsa-roots.pem
+   ```
+3. Mount the bundle read-only into the verifier (or commit it under
+   `config/`). Rotate the file out of band when a TSA rolls its root.
+4. Run periodic offline verification in your evidence pipeline:
+   ```bash
+   aura-seal verify-tst --segments /var/lib/aura-guard/segments \
+     --tsa-roots /etc/aura-guard/tsa-roots.pem --json
+   ```
+   Exit code `6` indicates any failure; the JSON payload carries the
+   per-segment `failure_reason`.
 
 ## Verifying segments offline
 
@@ -146,8 +204,13 @@ aura-seal verify-chain --segments logs/segments
 aura-seal verify --log logs/audit.jsonl --segments logs/segments
 
 # Verify that each `.tsr` file's messageImprint matches the manifest it
-# claims to stamp.
+# claims to stamp (imprint-only, v1.4 behaviour).
 aura-seal verify-tst --segments logs/segments
+
+# Strict RFC 3161 + PKIX verification against operator-pinned trust
+# anchors. Exit code 6 on any failure with a concrete reason.
+aura-seal verify-tst --segments logs/segments \
+    --tsa-roots config/tsa-roots.pem --json
 
 # Emit an inclusion proof for a specific entry as JSON.
 aura-seal proof --log logs/audit.jsonl --segments logs/segments --seq 4242
@@ -166,7 +229,7 @@ Exit codes (`aura-seal` / `aura-replay --verify-segments`):
 | `3`  | lineage mismatch (`aura-replay --verify-lineage`)        |
 | `4`  | segment-chain break or manifest self-hash mismatch       |
 | `5`  | manifest's Merkle root does not match the audit log      |
-| `6`  | TST messageImprint does not match the manifest          |
+| `6`  | TST verification failed (imprint, signature, chain, EKU, or genTime) |
 
 ## Threat model addendum
 

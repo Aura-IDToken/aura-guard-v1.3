@@ -27,6 +27,10 @@ input + signed policy  →  decision + chain_hash  →  append-only JSONL
 - **Optional RFC 3161 timestamping.** Each sealed segment can be anchored
   to a public or operator-pinned TSA. Off by default, fail-open on TSA
   outages, no impact on the deterministic core.
+- **Strict RFC 3161 verifier.** `aura-seal verify-tst --tsa-roots <pem>`
+  performs full RFC 5652 SignedData + PKIX chain validation against an
+  operator-pinned trust anchor, including `signingCertificate(V2)`
+  binding and the `id-kp-timeStamping` EKU. Offline only — no CRL/OCSP.
 - **Signed policies.** Ed25519 signatures over policy YAML bytes; loader
   fails closed on missing or invalid signatures.
 - **Fail-closed startup.** Process exits with code `78` (`EX_CONFIG`)
@@ -158,7 +162,7 @@ OpenAPI 3.0 spec: [`docs/openapi.yaml`](docs/openapi.yaml).
 | `3` | `LINEAGE MISMATCH` | `aura-replay --verify-lineage` saw an on-disk policy hash that no longer matches the logged provenance |
 | `4` | `SEGMENT CHAIN BREAK` | `aura-seal` / `aura-replay --verify-segments` detected a tampered or missing manifest |
 | `5` | `LOG/MANIFEST MISMATCH` | A manifest's Merkle root does not match the audit-log slice it claims to cover |
-| `6` | `TST INVALID` | `aura-seal verify-tst` saw a Time-Stamp Response that does not match the manifest |
+| `6` | `TST INVALID` | `aura-seal verify-tst` rejected an RFC 3161 token (imprint, signature, chain, EKU, or genTime) |
 | `78` | `EX_CONFIG` | `aura-guard` refused to start — see structured `BOOT FAIL` log line |
 
 systemd: set `RestartPreventExitStatus=78` so a fail-closed boot stops the
@@ -286,6 +290,7 @@ aura-seal verify-chain --segments logs/segments         # segment-chain linkage 
 aura-seal verify --log logs/audit.jsonl --segments logs/segments  # + Merkle vs. log
 aura-seal proof --log logs/audit.jsonl --segments logs/segments --seq N
 aura-seal verify-tst --segments logs/segments [--segment-id N]
+aura-seal verify-tst --segments logs/segments --tsa-roots config/tsa-roots.pem  # strict PKIX
 ```
 
 `--verify-lineage` reloads each policy YAML referenced by the log and
@@ -347,7 +352,8 @@ aura-guard-v1.3/
 | --- | --- | --- |
 | v1.3 | Bootstrap fail-closed gate, lineage verification, distroless image | shipped |
 | v1.4 | Merkle batching (RFC 6962) + optional RFC 3161 timestamping, `aura-seal` CLI | shipped |
-| v1.5 | Full PKIX `.tsr` verification, Helm chart, Kubernetes operator, HSM signing, cosign release attestations, OTLP exporter | planned |
+| v1.5 | Full PKIX `.tsr` verification (RFC 3161 / RFC 5652 / RFC 5816) | shipped |
+| v1.6 | Helm chart, Kubernetes operator, HSM signing, cosign release attestations, OTLP exporter | planned |
 | v2.0 | Binary evidence envelope, cross-language verifiers, formal verification | planned |
 
 Full breakdown: [`docs/ROADMAP.md`](docs/ROADMAP.md).

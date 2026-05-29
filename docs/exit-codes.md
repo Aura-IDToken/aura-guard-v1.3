@@ -12,7 +12,7 @@ should be wired against.
 | `3`  | `LINEAGE MISMATCH`       | `aura-replay --verify-lineage` | An on-disk policy YAML's SHA-256 no longer matches the `policy_hash` recorded with at least one audit entry. |
 | `4`  | `SEGMENT CHAIN BREAK`    | `aura-seal`, `aura-replay --verify-segments` | The segment-chain linkage is broken: a manifest's stored `segment_chain_hash` does not match its recomputed hash, or there is a gap in segment ids. |
 | `5`  | `LOG/MANIFEST MISMATCH`  | `aura-seal verify`, `aura-replay --verify-segments` | A manifest's Merkle root does not match the corresponding slice of the audit log, or its `head_chain_hash_at_close` disagrees with the entry at `last_seq`. |
-| `6`  | `TST INVALID`            | `aura-seal verify-tst` | An RFC 3161 Time-Stamp Response does not contain the manifest's expected `messageImprint` digest. |
+| `6`  | `TST INVALID`            | `aura-seal verify-tst` | An RFC 3161 Time-Stamp Response failed verification. In imprint-only mode (no `--tsa-roots`): the messageImprint did not match. In strict mode (`--tsa-roots` provided): one of `messageImprint`, signer-info signature, `id-aa-messageDigest` / `signingCertificate(V2)` signed attributes, PKIX chain to a pinned root, `id-kp-timeStamping` EKU, or `genTime` within signer-cert validity. The JSON output carries the specific `failure_reason`. |
 | `78` | `EX_CONFIG`              | `aura-guard` | The server refused to start because the bootstrap fail-closed gate was not satisfied (missing policy, invalid signature, unreadable trusted-signers file, missing API key, etc.). The HTTP listener was **never** bound. |
 
 ## How to wire this into supervisors
