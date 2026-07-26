@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
-/// Minimum number of bytes required for a production API key
-/// (`AURA_AUTH_DISABLED=false`).
+/// Minimum number of bytes required for a production API key when
+/// authentication is enabled (`AURA_AUTH_DISABLED=false`).
 ///
 /// Length is measured with [`str::len`], which returns **byte count**.  For
 /// the recommended ASCII/hex format (`openssl rand -hex 32` → 64 hex chars)
@@ -257,7 +257,8 @@ impl Config {
             return Err(crate::AuraError::Config(format!(
                 "AURA_AUTH_DISABLED=true is not permitted when binding to a \
                  non-loopback address ({}). \
-                 Remove AURA_AUTH_DISABLED or restrict AURA_BIND to 127.0.0.1.",
+                 Remove AURA_AUTH_DISABLED or restrict AURA_BIND to 127.0.0.1 \
+                 or ::1.",
                 self.bind
             )));
         }
@@ -273,7 +274,7 @@ impl Config {
             if let Some(key) = &self.api_key {
                 if key.len() < MIN_API_KEY_LEN {
                     return Err(crate::AuraError::Config(format!(
-                        "AURA_API_KEY must be at least {MIN_API_KEY_LEN} characters \
+                        "AURA_API_KEY must be at least {MIN_API_KEY_LEN} bytes \
                          long (got {}). \
                          Generate a strong key with: openssl rand -hex 32",
                         key.len()
