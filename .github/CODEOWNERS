@@ -1,0 +1,28 @@
+# Default owner for the entire repository.
+# Every PR requires review from @AuraIDToken unless a more specific rule below applies.
+# NOTE: Replace @AuraIDToken with individual GitHub usernames or org team slugs
+# (e.g. @AuraIDToken/security-team) once those teams are created in the GitHub org.
+*       @AuraIDToken
+
+# Security-critical paths — require @AuraIDToken review on every change.
+# Requirement: Enterprise Readiness Audit T-02 (P0).
+# Any modification to cryptographic primitives, the hash-chain, the decision
+# engine, or the authentication middleware must be approved before merging.
+src/crypto.rs   @AuraIDToken
+src/chain.rs    @AuraIDToken
+src/engine.rs   @AuraIDToken
+src/auth.rs     @AuraIDToken
+
+# Policy assets — changes to signed policies or the trusted-signers registry
+# carry the same weight as cryptographic code changes.
+policies/                   @AuraIDToken
+trusted_signers.json        @AuraIDToken
+
+# CI/CD workflows — changes to the pipeline can suppress security checks.
+.github/workflows/          @AuraIDToken
+
+# Compliance and governance documents are audit artifacts;
+# inaccuracies have regulatory consequences.
+docs/compliance-brief.md    @AuraIDToken
+docs/threat-model.md        @AuraIDToken
+docs/adr/                   @AuraIDToken
