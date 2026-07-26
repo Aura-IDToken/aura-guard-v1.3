@@ -101,6 +101,7 @@ mod tests {
             schema: "aura-guard.audit.v1".into(),
             seq,
             audit_id: format!("{:08}", seq),
+            request_id: None,
             timestamp: "2026-05-12T00:00:00+00:00".into(),
             decision: decision.into(),
             policy_set: "finance-v1".into(),
