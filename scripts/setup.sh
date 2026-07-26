@@ -29,5 +29,6 @@ echo "[setup] signing policy packs"
   policies/medtech-v1.yaml \
   policies/hr-bias-v1.yaml
 
-echo "[setup] OK — start the server with:"
-echo "    AURA_API_KEY=changeme ./target/release/aura-guard"
+echo "[setup] OK — generate a strong API key first, then start the server:"
+echo "    openssl rand -hex 32          # prints a 64-char key"
+echo "    AURA_API_KEY=<key> ./target/release/aura-guard"

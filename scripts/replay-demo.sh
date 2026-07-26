@@ -9,7 +9,7 @@
 #
 # Prerequisites:
 #   * `aura-guard` running on $AURA_BIND (default http://127.0.0.1:8080)
-#     with $AURA_API_KEY exported (default "changeme" for local dev).
+#     with $AURA_API_KEY exported.
 #   * `./scripts/setup.sh` has been run (release binaries + signed policies).
 #
 # The script itself exits 0 on the *expected* failure (chain break with rc=2)
@@ -20,7 +20,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 URL="${AURA_BIND:-http://127.0.0.1:8080}"
-KEY="${AURA_API_KEY:-changeme}"
+: "${AURA_API_KEY:?AURA_API_KEY must be set (generate with: openssl rand -hex 32)}"
+KEY="${AURA_API_KEY}"
 LOG=logs/audit.jsonl
 REPLAY=./target/release/aura-replay
 
