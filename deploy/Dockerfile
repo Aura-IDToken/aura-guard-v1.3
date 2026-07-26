@@ -20,7 +20,11 @@ COPY . .
 RUN cargo build --release --locked --bins
 
 # ─── runtime ─────────────────────────────────────────────────────────────
-FROM gcr.io/distroless/cc-debian12:nonroot
+# Production default: gcr.io/distroless/cc-debian12:nonroot (no shell, no extra tools).
+# Docker Compose / dev-staging: pass --build-arg RUNTIME=gcr.io/distroless/cc-debian12:debug-nonroot
+# to get busybox (including wget) for the health-check probe.
+ARG RUNTIME=gcr.io/distroless/cc-debian12:nonroot
+FROM ${RUNTIME}
 
 WORKDIR /app
 COPY --from=builder /build/target/release/aura-guard         /app/aura-guard
