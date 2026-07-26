@@ -4,17 +4,28 @@
 
 | Version | Supported |
 | --- | --- |
-| 1.3.x | yes (current stable) |
-| 1.2.x | security fixes only until 2026-12-31 |
-| < 1.2 | not supported (known case-sensitivity bug — please upgrade) |
+| 1.3.x | yes |
+| < 1.3 | no |
 
 ## Reporting a vulnerability
 
-Send a report to **security@aura-idtoken.example** (encrypted with the PGP key
-published on the project landing page). A maintainer will acknowledge within
-**3 business days** and provide a fix or mitigation within **30 days**.
+Use GitHub's private vulnerability reporting for this repository if it is
+enabled. If private reporting is unavailable, contact the maintainers through a
+non-public channel before disclosing details.
 
 Please do **not** open GitHub issues for security findings.
+
+### What to include
+
+Please include:
+
+* affected version or commit,
+* deployment assumptions (`AURA_*` settings, reverse proxy, TSA usage),
+* reproduction steps or proof-of-concept,
+* impact assessment and any suggested mitigations.
+
+We aim to acknowledge reports within 3 business days. Remediation timelines are
+best-effort and depend on severity, exploitability, and release scope.
 
 ## Threat model
 
@@ -38,6 +49,28 @@ The high-level guarantees:
   must restart the service after restoring filesystem capacity.
 * **Memory safety** — the runtime is built with `#![forbid(unsafe_code)]`.
 
+## Configuration guardrails
+
+Security-relevant startup checks enforced by `Config::validate`:
+
+* `AURA_API_KEY` is mandatory unless `AURA_AUTH_DISABLED=true`.
+* API keys shorter than 32 bytes are rejected.
+* Well-known placeholder API keys (for example `changeme`, `password`,
+  `apikey`) are rejected.
+* `AURA_AUTH_DISABLED=true` is rejected when binding to a non-loopback address.
+
+## Verification and evidence operations
+
+Security-sensitive operator workflows that are implemented in the current tree:
+
+* `aura-replay --verify-lineage` checks that each logged `policy_hash`
+  still matches the signed policy bytes on disk.
+* `aura-replay --verify-segments` adds manifest-chain and Merkle verification.
+* `aura-seal verify-tst --tsa-roots <bundle.pem>` performs strict RFC 3161 /
+  RFC 5652 verification against operator-pinned trust anchors.
+* `aura-seal verify-tst` without `--tsa-roots` is intentionally weaker:
+  imprint-only verification for backward compatibility.
+
 ## Out-of-scope
 
 Network-layer DoS, kernel exploits, supply-chain attacks on the build host,
@@ -46,6 +79,16 @@ itself. See `docs/THREAT_MODEL.md` §5.
 
 ## Supply chain
 
-Releases are built with `cargo build --locked --release`, scanned with
-`cargo-audit` and `cargo-deny`, and accompanied by a CycloneDX SBOM
-(`sbom.cdx.json`). Signed releases (cosign / sigstore) are planned for v1.4.
+The CI workflow in `.github/workflows/ci.yml` currently runs:
+
+* `cargo build --locked --release --all-targets`
+* `cargo test --locked --all-targets`
+* `cargo clippy --all-targets --all-features -- -D warnings`
+* `cargo audit --deny warnings --ignore RUSTSEC-2023-0071`
+* `cargo deny check`
+* `cargo cyclonedx --format json --override-filename sbom.cdx`
+
+The generated CycloneDX artifact is `sbom.cdx.json`. The `cargo-audit` ignore
+for `RUSTSEC-2023-0071` is intentional and documented in `deny.toml`: this
+codebase uses `rsa` only for public-key verification in the strict TSA token
+verifier, not for private-key operations affected by the advisory.

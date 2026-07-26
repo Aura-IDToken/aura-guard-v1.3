@@ -1,13 +1,14 @@
 # Aura-Guard
 
-[![CI](https://github.com/Aura-IDToken/aura-guard-v1.3/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Aura-IDToken/aura-guard-v1.3/actions/workflows/ci.yml)
+[![CI](https://github.com/AuraIDToken/aura-guard-v1.3/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/AuraIDToken/aura-guard-v1.3/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.86%2B-orange.svg)](https://www.rust-lang.org)
 [![Posture](https://img.shields.io/badge/posture-fail--closed-red.svg)](docs/THREAT_MODEL.md)
 
 Deterministic audit middleware for AI systems. Produces an append-only,
 hash-chained, signature-verified record of every decision the model made
-against a frozen, signed rulebook. No ML, no cloud, no telemetry.
+against a frozen, signed rulebook. No external ML dependency, no cloud
+control plane, no telemetry in the deterministic core.
 
 ```
 input + signed policy  →  decision + chain_hash  →  append-only JSONL
@@ -36,8 +37,9 @@ input + signed policy  →  decision + chain_hash  →  append-only JSONL
 - **Fail-closed startup.** Process exits with code `78` (`EX_CONFIG`)
   before binding the listener if any expected policy fails to load and
   verify.
-- **Privacy by design.** Only SHA-256 hashes of prompt/response leave
-  the host. Raw text is never written to the audit log.
+- **Privacy by design.** Raw prompt/response text is never written to the
+  audit log. Optional TSA submissions send only a SHA-256 digest of the
+  sealed segment preimage, never the underlying payload.
 - **Operational surface.** API-key auth (constant-time), body and
   timeout limits, `/health` `/ready` `/version`, Prometheus `/metrics`,
   structured JSON logs via `tracing`.
@@ -46,22 +48,27 @@ input + signed policy  →  decision + chain_hash  →  append-only JSONL
 
 ## Quickstart
 
-Requires Rust 1.86+, `jq` for the smoke test, and (optionally) Docker.
+Requires Rust 1.86+, `jq` for the smoke test, `openssl` to generate an API
+key, and (optionally) Docker.
 
 ```bash
-git clone https://github.com/Aura-IDToken/aura-guard-v1.3.git
+git clone https://github.com/AuraIDToken/aura-guard-v1.3.git
 cd aura-guard-v1.3
 ./scripts/setup.sh                  # build + keygen + sign policy packs
-export AURA_API_KEY=changeme
+export AURA_API_KEY="$(openssl rand -hex 32)"
 ./target/release/aura-guard &       # start the server (foreground recommended in prod)
 ./scripts/test.sh                   # 6 golden smoke tests
 ./scripts/replay-demo.sh            # tamper-detection demo
 ```
 
+`./scripts/test.sh` targets `http://127.0.0.1:8080` by default. If you start
+the server elsewhere, pass the script a full base URL via `AURA_BIND` for that
+invocation only.
+
 Docker:
 
 ```bash
-export AURA_API_KEY=changeme
+export AURA_API_KEY="$(openssl rand -hex 32)"
 docker compose -f deploy/docker-compose.yml up --build
 ```
 
@@ -184,8 +191,9 @@ Single audit request, release build, Linux x86_64, in-process router via
 | Tamper case, finance-v1 (Luhn-valid CC) | ~140 µs | ~7 100 req/s |
 | `aura-replay` on 10 000-entry log | ~85 ms | — |
 
-Numbers are illustrative — re-run on your hardware with
-`cargo bench` once a Criterion harness ships (planned for v1.4).
+Numbers are illustrative. This repository does not ship a `cargo bench`
+harness yet, so reproduce them with your own load tooling if you need
+host-specific numbers.
 
 ---
 
@@ -212,7 +220,7 @@ Set `RestartPreventExitStatus=78` so the fail-closed boot path is honoured.
 
 Treat as a stateless container with a writable `emptyDir` (or PVC) for the
 audit log. Wire `/health` to `livenessProbe` and `/ready` to
-`readinessProbe`. Helm chart and operator are tracked for v1.5
+`readinessProbe`. Helm chart and operator are tracked for v1.6
 ([`docs/ROADMAP.md`](docs/ROADMAP.md)).
 
 Full guide: [`docs/deployment.md`](docs/deployment.md).
@@ -226,8 +234,8 @@ All keys are environment variables prefixed `AURA_`.
 | Variable | Default | Notes |
 | --- | --- | --- |
 | `AURA_BIND` | `127.0.0.1:8080` | Listen address. |
-| `AURA_API_KEY` | _(required)_ | API key (sent on `X-API-Key` or `Authorization: Bearer`). |
-| `AURA_AUTH_DISABLED` | `false` | Disables auth + signature enforcement. Dev/test only. |
+| `AURA_API_KEY` | _(required)_ | API key (sent on `X-API-Key` or `Authorization: Bearer`), minimum 32 bytes; well-known placeholder values are rejected. |
+| `AURA_AUTH_DISABLED` | `false` | Disables auth + signature enforcement. Dev/test only; rejected when `AURA_BIND` is non-loopback. |
 | `AURA_POLICIES_DIR` | `policies` | Where signed YAML packs live. |
 | `AURA_TRUSTED_SIGNERS_FILE` | `policies/trusted_signers.json` | Signer-ID → Ed25519 pubkey map. |
 | `AURA_DEFAULT_POLICY_SET` | `finance-v1` | Used when the request omits `policy_set`. |
@@ -308,7 +316,7 @@ stderr warning.
 aura-guard-v1.3/
 ├── src/                       # runtime + CLIs
 │   ├── api/{audit,health,mod}.rs
-│   ├── bin/{aura_replay,aura_sign_policy}.rs
+│   ├── bin/{aura_replay,aura_seal,aura_sign_policy}.rs
 │   ├── auth.rs                # API-key middleware (constant-time)
 │   ├── chain.rs               # hash chain construction + verification
 │   ├── config.rs              # AURA_* env config
@@ -354,6 +362,7 @@ aura-guard-v1.3/
 | v1.4 | Merkle batching (RFC 6962) + optional RFC 3161 timestamping, `aura-seal` CLI | shipped |
 | v1.5 | Full PKIX `.tsr` verification (RFC 3161 / RFC 5652 / RFC 5816) | shipped |
 | v1.6 | Helm chart, Kubernetes operator, HSM signing, cosign release attestations, OTLP exporter | planned |
+| v1.7 | Policy approval workflows, review queue UI, cross-policy simulation, evidence export bundles | planned |
 | v2.0 | Binary evidence envelope, cross-language verifiers, formal verification | planned |
 
 Full breakdown: [`docs/ROADMAP.md`](docs/ROADMAP.md).

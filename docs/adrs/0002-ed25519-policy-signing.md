@@ -1,6 +1,6 @@
 # ADR-0002: Ed25519 for policy signing
 
-Status: Accepted (v1.3).
+Status: Accepted in v1.3, still current.
 
 ## Context
 
@@ -29,8 +29,8 @@ ID.
   message ⇒ same signature, useful for reproducible builds.
 * **Speed + size** — 32-byte keys, 64-byte signatures, sub-millisecond verify.
 * **Audited implementation** — `ed25519-dalek` v2 is widely used and audited.
-* **HSM friendly** — Ed25519 is supported by mainstream HSMs / cloud KMS for
-  the v1.5 enterprise roadmap.
+* **HSM friendly** — Ed25519 is a practical fit for the planned HSM-backed
+  signer workflow on the roadmap.
 
 ## Consequences
 
@@ -39,3 +39,12 @@ ID.
 * Adding a new signer is a one-line JSON edit, easily code-reviewed.
 * Key rotation: append new pubkey, re-sign all packs, keep the old key trusted
   for a transition window, then remove.
+
+## Related shipped work
+
+Subsequent releases expanded timestamp-verification and evidence-sealing
+capabilities, but policy authenticity still depends on the Ed25519 trust model
+recorded in this ADR:
+
+* `aura-sign-policy` remains the key-generation and signing utility.
+* `policies/trusted_signers.json` remains the runtime verifier registry.

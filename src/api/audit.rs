@@ -18,9 +18,9 @@ use crate::policy::CompiledPolicy;
 
 /// Maximum byte length accepted for an inbound `X-Request-ID` value.
 ///
-/// Anything longer is silently ignored (the entry's `request_id` is simply
-/// omitted) to prevent log-injection / unbounded-string attacks.
-pub(crate) const MAX_REQUEST_ID_LEN: usize = 128;
+/// Anything longer is silently ignored (we generate a fresh UUIDv4 instead)
+/// to prevent log-injection / unbounded-string attacks.
+const MAX_REQUEST_ID_LEN: usize = 128;
 
 /// Extract a caller-supplied correlation id from `X-Request-ID`.
 ///
@@ -140,7 +140,7 @@ pub async fn handle_audit(
         context: req.context.clone(),
         input_hash,
         shadow_hash,
-        violations,
+        violations: violations.clone(),
         prev_hash,
         chain_hash,
     };
