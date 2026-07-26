@@ -24,10 +24,10 @@ pub const MIN_API_KEY_LEN: usize = 32;
 
 /// Well-known placeholder values that are never accepted as production API keys.
 ///
-/// Checked case-insensitively by [`Config::validate`].  All values are intentionally
-/// kept < [`MIN_API_KEY_LEN`] characters so the length guard fires first; the
-/// denylist provides an additional, human-readable error for the most common
-/// mistakes.
+/// Checked case-insensitively by [`Config::validate`]. All values are intentionally
+/// kept shorter than [`MIN_API_KEY_LEN`] bytes so the length check rejects them
+/// before this denylist is consulted; the denylist provides an additional,
+/// human-readable error for the most common mistakes.
 const WEAK_API_KEYS: &[&str] = &[
     "changeme",
     "secret",
@@ -256,9 +256,8 @@ impl Config {
         if self.auth_disabled && !self.bind.ip().is_loopback() {
             return Err(crate::AuraError::Config(format!(
                 "AURA_AUTH_DISABLED=true is not permitted when binding to a \
-                 non-loopback address ({}). \
-                 Remove AURA_AUTH_DISABLED or restrict AURA_BIND to 127.0.0.1 \
-                 or ::1.",
+                 non-loopback address ({}). Remove AURA_AUTH_DISABLED or \
+                 restrict AURA_BIND to 127.0.0.1 or ::1.",
                 self.bind
             )));
         }
