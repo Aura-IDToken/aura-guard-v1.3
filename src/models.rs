@@ -57,6 +57,9 @@ pub struct AuditEntry {
     /// Unique per-request UUIDv4.
     pub audit_id: String,
 
+    /// Caller-supplied correlation id echoed from the `X-Request-ID` HTTP
+    /// request header when present and valid; omitted otherwise. Enables
+    /// cross-service tracing.
     /// Caller-supplied (or server-generated) correlation id echoed from the
     /// `X-Request-ID` HTTP request header. Enables cross-service tracing.
     #[serde(default, skip_serializing_if = "Option::is_none")]
