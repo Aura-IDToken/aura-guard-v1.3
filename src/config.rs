@@ -11,6 +11,10 @@ use std::path::PathBuf;
 /// Minimum number of bytes required for a production API key
 /// (`AURA_AUTH_DISABLED=false`).
 ///
+/// Length is measured with [`str::len`], which returns **byte count**.  For
+/// the recommended ASCII/hex format (`openssl rand -hex 32` → 64 hex chars)
+/// byte count equals character count.
+///
 /// Keys shorter than this limit are trivially brute-forceable and are rejected
 /// by [`Config::validate`].  Generate a key with:
 /// ```text
@@ -270,8 +274,7 @@ impl Config {
                     key.len()
                 )));
             }
-            let key_lower = key.to_lowercase();
-            if WEAK_API_KEYS.iter().any(|&w| key_lower == w) {
+            if WEAK_API_KEYS.iter().any(|&w| key.eq_ignore_ascii_case(w)) {
                 return Err(crate::AuraError::Config(
                     "AURA_API_KEY is a well-known placeholder value. \
                      Generate a strong random key with: openssl rand -hex 32"
