@@ -5,7 +5,7 @@
 //! to prevent accidental production deployments with:
 //!
 //! * `AURA_AUTH_DISABLED=true` on a non-loopback bind address,
-//! * `AURA_AUTH_DISABLED=false` without an API key,
+//! * auth enabled without an API key,
 //! * an API key that is too short to resist brute-force, or
 //! * a well-known placeholder API key.
 
