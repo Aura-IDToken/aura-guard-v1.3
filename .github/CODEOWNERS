@@ -1,0 +1,26 @@
+# Default owners for the entire repository.
+# All PRs require review from the core team unless a more specific rule below applies.
+*       @AuraIDToken/core-team
+
+# Security-critical paths — mandatory security-team review for every change.
+# Requirement: Enterprise Readiness Audit T-02 (P0).
+# Any modification to cryptographic primitives, the hash-chain, the decision
+# engine, or the authentication middleware must be approved by @AuraIDToken/security-team
+# before merging, regardless of who else has reviewed the PR.
+src/crypto.rs   @AuraIDToken/security-team
+src/chain.rs    @AuraIDToken/security-team
+src/engine.rs   @AuraIDToken/security-team
+src/auth.rs     @AuraIDToken/security-team
+
+# Policy assets — changes to signed policies or the trusted-signers registry
+# require security-team sign-off.
+policies/                   @AuraIDToken/security-team
+trusted_signers.json        @AuraIDToken/security-team
+
+# CI/CD workflows — infrastructure changes need core-team approval.
+.github/workflows/          @AuraIDToken/core-team
+
+# Compliance and governance documents — owned by the security team.
+docs/compliance-brief.md    @AuraIDToken/security-team
+docs/threat-model.md        @AuraIDToken/security-team
+docs/adr/                   @AuraIDToken/security-team
