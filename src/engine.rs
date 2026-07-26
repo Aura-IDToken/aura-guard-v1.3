@@ -230,22 +230,22 @@ mod tests {
     fn multiple_context_patterns() {
         let mut r1 = rule("ctx1", "swift", "review", 0.5);
         r1.context_pattern = Some(Regex::new("(?i)Finance").unwrap());
-        
+
         let mut r2 = rule("ctx2", "swift", "deny", 0.9);
         r2.context_pattern = Some(Regex::new("(?i)Banking").unwrap());
-        
+
         let rules = vec![r1, r2];
-        
+
         // Finance context: only r1 should match
         let (d, v) = evaluate("swift code", "Finance Bot", &rules);
         assert_eq!(d, "REVIEW");
         assert_eq!(v.len(), 1);
-        
+
         // Banking context: only r2 should match
         let (d, v) = evaluate("swift code", "Banking System", &rules);
         assert_eq!(d, "DENY");
         assert_eq!(v.len(), 1);
-        
+
         // Support context: neither should match
         let (d, v) = evaluate("swift code", "Support Team", &rules);
         assert_eq!(d, "ALLOW");

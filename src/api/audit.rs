@@ -54,7 +54,7 @@ pub async fn handle_audit(
 
     // Attach both ids to the current tracing span so every log line emitted
     // within this request — including middleware layers — carries them.
-    tracing::Span::current().record("audit_id", &audit_id.as_str());
+    tracing::Span::current().record("audit_id", audit_id.as_str());
     if let Some(rid) = &request_id {
         tracing::Span::current().record("request_id", rid.as_str());
     }
