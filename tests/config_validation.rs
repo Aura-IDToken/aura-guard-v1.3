@@ -174,3 +174,23 @@ fn validate_skips_key_strength_check_when_no_key_is_set() {
     };
     assert!(cfg.validate().is_ok());
 }
+
+#[test]
+fn validate_rejects_missing_key_when_auth_is_enabled() {
+    // auth_disabled=false (the default) + no key must be rejected by validate()
+    // so that manually-constructed Config values are checked without needing from_env().
+    let cfg = Config {
+        bind: "127.0.0.1:8080".parse().expect("parse loopback"),
+        auth_disabled: false,
+        api_key: None,
+        ..Config::default()
+    };
+    let err = cfg
+        .validate()
+        .expect_err("missing api_key with auth enabled must be rejected");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("AURA_API_KEY") || msg.contains("required"),
+        "error must mention that an API key is required, got: {msg}"
+    );
+}

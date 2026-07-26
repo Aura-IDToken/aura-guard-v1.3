@@ -251,8 +251,12 @@ impl Config {
     /// * `auth_disabled = true` and the bind address is **not** a loopback
     ///   address — disabling authentication while listening on a network-reachable
     ///   interface is a production-unsafe configuration.
-    /// * The API key is shorter than [`MIN_API_KEY_LEN`] bytes.
-    /// * The API key matches a well-known placeholder value (case-insensitive).
+    /// * `auth_disabled = false` (the default) and `api_key` is `None` — the
+    ///   server cannot enforce authentication without a key.
+    /// * `auth_disabled = false` and the API key is shorter than
+    ///   [`MIN_API_KEY_LEN`] bytes.
+    /// * `auth_disabled = false` and the API key matches a well-known
+    ///   placeholder value (case-insensitive).
     pub fn validate(&self) -> Result<(), crate::AuraError> {
         // Guard 1: auth_disabled must not be set when listening on a non-loopback interface.
         if self.auth_disabled && !self.bind.ip().is_loopback() {
@@ -264,22 +268,30 @@ impl Config {
             )));
         }
 
-        // Guard 2: API key strength — length and known-placeholder checks.
-        if let Some(key) = &self.api_key {
-            if key.len() < MIN_API_KEY_LEN {
-                return Err(crate::AuraError::Config(format!(
-                    "AURA_API_KEY must be at least {MIN_API_KEY_LEN} characters \
-                     long (got {}). \
-                     Generate a strong key with: openssl rand -hex 32",
-                    key.len()
-                )));
-            }
-            if WEAK_API_KEYS.iter().any(|&w| key.eq_ignore_ascii_case(w)) {
+        // Guard 2: API key checks only apply when authentication is enabled.
+        if !self.auth_disabled {
+            if self.api_key.is_none() {
                 return Err(crate::AuraError::Config(
-                    "AURA_API_KEY is a well-known placeholder value. \
-                     Generate a strong random key with: openssl rand -hex 32"
+                    "AURA_API_KEY is required (or set AURA_AUTH_DISABLED=true for local dev)"
                         .into(),
                 ));
+            }
+            if let Some(key) = &self.api_key {
+                if key.len() < MIN_API_KEY_LEN {
+                    return Err(crate::AuraError::Config(format!(
+                        "AURA_API_KEY must be at least {MIN_API_KEY_LEN} characters \
+                         long (got {}). \
+                         Generate a strong key with: openssl rand -hex 32",
+                        key.len()
+                    )));
+                }
+                if WEAK_API_KEYS.iter().any(|&w| key.eq_ignore_ascii_case(w)) {
+                    return Err(crate::AuraError::Config(
+                        "AURA_API_KEY is a well-known placeholder value. \
+                         Generate a strong random key with: openssl rand -hex 32"
+                            .into(),
+                    ));
+                }
             }
         }
 
