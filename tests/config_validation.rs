@@ -56,7 +56,10 @@ fn validate_accepts_key_longer_than_minimum() {
         api_key: Some("a".repeat(MIN_API_KEY_LEN + 32)),
         ..base_config()
     };
-    assert!(cfg.validate().is_ok(), "key longer than minimum must be accepted");
+    assert!(
+        cfg.validate().is_ok(),
+        "key longer than minimum must be accepted"
+    );
 }
 
 #[test]
@@ -65,7 +68,9 @@ fn validate_rejects_key_one_below_minimum_length() {
         api_key: Some("a".repeat(MIN_API_KEY_LEN - 1)),
         ..base_config()
     };
-    let err = cfg.validate().expect_err("key one char below minimum must be rejected");
+    let err = cfg
+        .validate()
+        .expect_err("key one char below minimum must be rejected");
     let msg = err.to_string();
     assert!(
         msg.contains("at least"),
@@ -133,7 +138,9 @@ fn validate_rejects_placeholder_key_case_insensitive() {
         api_key: Some("ChAnGeMe".to_string()),
         ..base_config()
     };
-    let err = cfg.validate().expect_err("mixed-case 'ChAnGeMe' must be rejected");
+    let err = cfg
+        .validate()
+        .expect_err("mixed-case 'ChAnGeMe' must be rejected");
     let msg = err.to_string();
     assert!(
         msg.contains("placeholder"),
@@ -330,7 +337,10 @@ fn validate_rejects_key_with_placeholder_substring() {
         ..base_config()
     };
     // Should fail because "changeme" substring is detected
-    assert!(cfg.validate().is_err(), "Keys containing 'changeme' substring should be rejected");
+    assert!(
+        cfg.validate().is_err(),
+        "Keys containing 'changeme' substring should be rejected"
+    );
 }
 
 #[test]
@@ -345,7 +355,10 @@ fn validate_accepts_very_long_api_key() {
 #[test]
 fn validate_accepts_api_key_with_special_chars() {
     let cfg = Config {
-        api_key: Some(format!("{}!@#$%^&*()_+-=[]{{}}|;:,.<>?", "a".repeat(MIN_API_KEY_LEN))),
+        api_key: Some(format!(
+            "{}!@#$%^&*()_+-=[]{{}}|;:,.<>?",
+            "a".repeat(MIN_API_KEY_LEN)
+        )),
         ..base_config()
     };
     assert!(cfg.validate().is_ok());
@@ -393,7 +406,10 @@ fn validate_regression_private_network_ranges() {
             auth_disabled: false,
             ..base_config()
         };
-        assert!(cfg.validate().is_ok(), "Should accept private IP {ip} with auth enabled");
+        assert!(
+            cfg.validate().is_ok(),
+            "Should accept private IP {ip} with auth enabled"
+        );
     }
 }
 
@@ -401,13 +417,13 @@ fn validate_regression_private_network_ranges() {
 fn validate_regression_auth_disabled_requires_loopback() {
     // Test that auth_disabled is only allowed on loopback
     let test_cases = vec![
-        ("127.0.0.1:8080", true),   // Should pass
-        ("127.0.0.2:8080", true),   // 127.0.0.2 is also loopback, should pass
+        ("127.0.0.1:8080", true),       // Should pass
+        ("127.0.0.2:8080", true),       // 127.0.0.2 is also loopback, should pass
         ("127.255.255.255:8080", true), // Still loopback
-        ("[::1]:8080", true),       // IPv6 loopback, should pass
-        ("0.0.0.0:8080", false),    // Should fail
-        ("10.0.0.1:8080", false),   // Should fail
-        ("192.168.1.1:8080", false), // Should fail
+        ("[::1]:8080", true),           // IPv6 loopback, should pass
+        ("0.0.0.0:8080", false),        // Should fail
+        ("10.0.0.1:8080", false),       // Should fail
+        ("192.168.1.1:8080", false),    // Should fail
     ];
 
     for (addr_str, should_pass) in test_cases {

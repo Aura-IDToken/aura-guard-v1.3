@@ -350,8 +350,10 @@ mod tests {
         // Test all Cyrillic confusables in the fold_confusables function
         // Cyrillic: а А е Е ё Ё о О р Р с С у У х Х і І ј Ј ѕ Ѕ к К в В н Н м М т Т
         // Maps to: a a e e e e o o p p c c y y x x i i j j s s k k b b h h m m t t
-        assert_eq!(shadow_normalize("аАеЕёЁоОрРсСуУхХіІјЈѕЅкКвВнНмМтТ"),
-                   "aaeeeeooppccyyxxiijjsskkbbhhmmtt");
+        assert_eq!(
+            shadow_normalize("аАеЕёЁоОрРсСуУхХіІјЈѕЅкКвВнНмМтТ"),
+            "aaeeeeooppccyyxxiijjsskkbbhhmmtt"
+        );
     }
 
     #[test]
