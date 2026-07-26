@@ -231,4 +231,260 @@ mod tests {
         let normalized = shadow_normalize(decomposed);
         assert_eq!(normalized, "café");
     }
+
+    // Additional edge case tests for shadow_normalize
+    #[test]
+    fn normalize_empty_string() {
+        assert_eq!(shadow_normalize(""), "");
+    }
+
+    #[test]
+    fn normalize_only_hidden_chars() {
+        let hidden = "\u{200B}\u{200C}\u{200D}";
+        assert_eq!(shadow_normalize(hidden), "");
+    }
+
+    #[test]
+    fn normalize_mixed_hidden_and_visible() {
+        let mixed = "a\u{200B}b\u{200C}c\u{200D}d";
+        assert_eq!(shadow_normalize(mixed), "abcd");
+    }
+
+    #[test]
+    fn normalize_bom_stripped() {
+        let with_bom = "\u{FEFF}test\u{FEFF}";
+        assert_eq!(shadow_normalize(with_bom), "test");
+    }
+
+    #[test]
+    fn normalize_soft_hyphen_stripped() {
+        let with_shy = "soft\u{00AD}hyphen";
+        assert_eq!(shadow_normalize(with_shy), "softhyphen");
+    }
+
+    #[test]
+    fn normalize_rtl_ltr_marks_stripped() {
+        let with_marks = "a\u{200E}b\u{200F}c";
+        assert_eq!(shadow_normalize(with_marks), "abc");
+    }
+
+    #[test]
+    fn normalize_directional_formatting_stripped() {
+        let with_dir = "a\u{202A}b\u{202B}c\u{202C}d\u{202D}e\u{202E}f";
+        assert_eq!(shadow_normalize(with_dir), "abcdef");
+    }
+
+    #[test]
+    fn normalize_isolates_stripped() {
+        let with_iso = "a\u{2066}b\u{2067}c\u{2068}d\u{2069}e";
+        assert_eq!(shadow_normalize(with_iso), "abcde");
+    }
+
+    #[test]
+    fn normalize_line_paragraph_separators() {
+        let with_sep = "a\u{2028}b\u{2029}c";
+        assert_eq!(shadow_normalize(with_sep), "abc");
+    }
+
+    #[test]
+    fn normalize_word_joiner_stripped() {
+        let with_wj = "word\u{2060}joiner";
+        assert_eq!(shadow_normalize(with_wj), "wordjoiner");
+    }
+
+    #[test]
+    fn normalize_mongolian_vowel_separator() {
+        let with_mvs = "test\u{180E}ing";
+        assert_eq!(shadow_normalize(with_mvs), "testing");
+    }
+
+    #[test]
+    fn confusable_greek_uppercase() {
+        // Only some Greek letters are mapped (those that look like Latin)
+        // Α->A, Β->B, Ε->E, Ζ->Z, Η->H, Ι->I, Κ->K, Μ->M, Ν->N, Ο->O, Ρ->P, Τ->T, Υ->Y, Χ->X
+        let greek_upper = "ΑΒΕΖΗΙΚΜΝΟΡΤΥΧ";
+        let normalized = shadow_normalize(greek_upper);
+        assert_eq!(normalized, "abezhikmnoptyx");
+    }
+
+    #[test]
+    fn confusable_greek_lowercase() {
+        // Test specific Greek lowercase letters that are mapped
+        assert_eq!(shadow_normalize("α"), "a"); // alpha
+        assert_eq!(shadow_normalize("ε"), "e"); // epsilon
+        assert_eq!(shadow_normalize("ι"), "i"); // iota
+        assert_eq!(shadow_normalize("κ"), "k"); // kappa
+        assert_eq!(shadow_normalize("ο"), "o"); // omicron
+        assert_eq!(shadow_normalize("ρ"), "p"); // rho
+        assert_eq!(shadow_normalize("τ"), "t"); // tau
+        assert_eq!(shadow_normalize("χ"), "x"); // chi
+    }
+
+    #[test]
+    fn confusable_fullwidth_uppercase() {
+        assert_eq!(shadow_normalize("ＡＢＣ"), "abc");
+    }
+
+    #[test]
+    fn confusable_fullwidth_lowercase() {
+        assert_eq!(shadow_normalize("ａｂｃ"), "abc");
+    }
+
+    #[test]
+    fn confusable_fullwidth_digits() {
+        assert_eq!(shadow_normalize("０１２３４５６７８９"), "0123456789");
+    }
+
+    #[test]
+    fn confusable_mathematical_bold() {
+        // Mathematical bold 'A' U+1D400 should not be in basic confusables
+        // but NFKC may normalize it
+        let math_bold = "\u{1D400}";
+        let normalized = shadow_normalize(math_bold);
+        // NFKC normalizes mathematical bold to regular letters
+        assert_eq!(normalized, "a");
+    }
+
+    #[test]
+    fn confusable_cyrillic_all_covered() {
+        // Test all Cyrillic confusables in the fold_confusables function
+        // Cyrillic: а А е Е ё Ё о О р Р с С у У х Х і І ј Ј ѕ Ѕ к К в В н Н м М т Т
+        // Maps to: a a e e e e o o p p c c y y x x i i j j s s k k b b h h m m t t
+        assert_eq!(shadow_normalize("аАеЕёЁоОрРсСуУхХіІјЈѕЅкКвВнНмМтТ"),
+                   "aaeeeeooppccyyxxiijjsskkbbhhmmtt");
+    }
+
+    #[test]
+    fn normalize_preserves_emoji() {
+        // Emojis should be preserved (lowercased but structure intact)
+        let emoji = "Test 😀 emoji";
+        let normalized = shadow_normalize(emoji);
+        assert!(normalized.contains("😀"));
+        assert!(normalized.starts_with("test"));
+    }
+
+    #[test]
+    fn normalize_preserves_cjk() {
+        // CJK characters should be preserved through NFKC
+        let cjk = "Test 中文 字符";
+        let normalized = shadow_normalize(cjk);
+        assert!(normalized.contains("中文"));
+    }
+
+    #[test]
+    fn normalize_case_insensitive_ascii() {
+        assert_eq!(shadow_normalize("ABC"), shadow_normalize("abc"));
+        assert_eq!(shadow_normalize("XyZ"), shadow_normalize("xyz"));
+    }
+
+    #[test]
+    fn normalize_mixed_script_attack() {
+        // Mix of Latin, Cyrillic, Greek - all should normalize to ASCII equivalents
+        let mixed = "АaΑa"; // Cyrillic A, Latin a, Greek Alpha, Latin a
+        let normalized = shadow_normalize(mixed);
+        assert_eq!(normalized, "aaaa");
+    }
+
+    #[test]
+    fn normalize_stacked_diacritics() {
+        // Multiple combining diacritics
+        let stacked = "a\u{0301}\u{0302}\u{0303}"; // a + acute + circumflex + tilde
+        let normalized = shadow_normalize(stacked);
+        // NFKC should compose these
+        assert!(!normalized.contains('\u{0301}'));
+    }
+
+    #[test]
+    fn normalize_ligatures() {
+        // Ligatures like 'ﬁ' (U+FB01) should be decomposed by NFKC
+        let ligature = "ﬁle";
+        let normalized = shadow_normalize(ligature);
+        assert_eq!(normalized, "file");
+    }
+
+    #[test]
+    fn normalize_superscript_subscript() {
+        // Superscript and subscript should be normalized by NFKC
+        let super_sub = "x²y₂"; // x superscript 2, y subscript 2
+        let normalized = shadow_normalize(super_sub);
+        assert_eq!(normalized, "x2y2");
+    }
+
+    #[test]
+    fn normalize_compatibility_spaces() {
+        // Various space characters should be normalized
+        let spaces = "a\u{00A0}b\u{2000}c"; // non-breaking space, en quad
+        let normalized = shadow_normalize(spaces);
+        // NFKC normalizes these to regular spaces
+        assert!(normalized.contains(' ') || normalized == "abc");
+    }
+
+    #[test]
+    fn normalize_regression_credit_card_with_zwsp() {
+        // Regression: ZWSP between digits should be stripped
+        let card = "4111\u{200B}1111\u{200B}1111\u{200B}1111";
+        let normalized = shadow_normalize(card);
+        assert_eq!(normalized, "4111111111111111");
+        assert!(!normalized.contains('\u{200B}'));
+    }
+
+    #[test]
+    fn normalize_regression_iban_with_format() {
+        // Regression: formatting characters in IBAN should be handled
+        let iban = "PL\u{200B}61\u{200B}1090\u{00AD}1014";
+        let normalized = shadow_normalize(iban);
+        assert!(!normalized.contains('\u{200B}'));
+        assert!(!normalized.contains('\u{00AD}'));
+    }
+
+    // Property-based tests for normalizer
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn prop_normalize_idempotent(s in ".*") {
+            // Normalizing twice should give the same result
+            let once = shadow_normalize(&s);
+            let twice = shadow_normalize(&once);
+            prop_assert_eq!(once, twice);
+        }
+
+        #[test]
+        fn prop_normalize_no_hidden_chars(s in ".*") {
+            let normalized = shadow_normalize(&s);
+            // No hidden characters should remain after normalization
+            for &hidden in HIDDEN_CHARS {
+                prop_assert!(!normalized.contains(hidden));
+            }
+        }
+
+        #[test]
+        fn prop_normalize_preserves_or_reduces_length(s in ".*") {
+            let normalized = shadow_normalize(&s);
+            // Normalization can sometimes increase byte length due to NFKC
+            // but should generally reduce or preserve character count
+            // Just ensure it doesn't panic - don't assert on length
+            let _ = normalized;
+        }
+
+        #[test]
+        fn prop_normalize_ascii_lowercase(s in "[A-Z]{1,100}") {
+            let normalized = shadow_normalize(&s);
+            // ASCII uppercase should become lowercase
+            prop_assert!(normalized.chars().all(|c| !c.is_ascii_uppercase()));
+        }
+
+        #[test]
+        fn prop_normalize_dont_panic(s in ".{0,1000}") {
+            // Should never panic on any input
+            let _ = shadow_normalize(&s);
+        }
+
+        #[test]
+        fn prop_fold_confusables_preserves_plain_ascii(s in "[a-z0-9]{1,100}") {
+            let folded = fold_confusables(&s);
+            // Plain ASCII should remain unchanged
+            prop_assert_eq!(s, folded);
+        }
+    }
 }

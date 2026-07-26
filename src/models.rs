@@ -57,6 +57,11 @@ pub struct AuditEntry {
     /// Unique per-request UUIDv4.
     pub audit_id: String,
 
+    /// Caller-supplied (or server-generated) correlation id echoed from the
+    /// `X-Request-ID` HTTP request header. Enables cross-service tracing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_id: Option<String>,
+
     /// RFC 3339 timestamp (UTC) when the decision was produced.
     pub timestamp: String,
 
