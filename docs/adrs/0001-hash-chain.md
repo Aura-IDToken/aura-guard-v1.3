@@ -12,7 +12,7 @@ We need a tamper-evident audit log. Three options were considered:
 
 ## Decision
 
-Adopt option 2 for v1.3 and revisit option 3 in v1.4.
+Adopt option 2 for v1.3 as the per-entry integrity primitive.
 
 Each entry stores `prev_hash` (the previous entry's `chain_hash`) and
 `chain_hash` (SHA-256 of canonical fields incl. `prev_hash`). The first
@@ -25,9 +25,10 @@ entry's `prev_hash` is the canonical genesis
   Merkle approaches solve this. Chained-hash is simpler and verifiable with a
   single linear pass.
 * **Replay is sequential by nature** — auditors stream the file once.
-* **Merkle becomes valuable when batching to external anchors** — that is the
-  v1.4 deliverable, where the chain head is wrapped into a daily Merkle root
-  and timestamped (RFC 3161) for cross-system attestation.
+* **Merkle becomes valuable when batching to external anchors** — this was
+  delivered in v1.4 (Merkle segment manifests) and extended in v1.5
+  (strict RFC 3161 verification) without replacing the linear hash-chain
+  decision recorded here.
 
 ## Consequences
 

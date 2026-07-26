@@ -1,6 +1,6 @@
 # Aura-Guard
 
-[![CI](https://github.com/Aura-IDToken/aura-guard-v1.3/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Aura-IDToken/aura-guard-v1.3/actions/workflows/ci.yml)
+[![CI](https://github.com/AuraIDToken/aura-guard-v1.3/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/AuraIDToken/aura-guard-v1.3/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.86%2B-orange.svg)](https://www.rust-lang.org)
 [![Posture](https://img.shields.io/badge/posture-fail--closed-red.svg)](docs/THREAT_MODEL.md)
@@ -49,10 +49,10 @@ input + signed policy  →  decision + chain_hash  →  append-only JSONL
 Requires Rust 1.86+, `jq` for the smoke test, and (optionally) Docker.
 
 ```bash
-git clone https://github.com/Aura-IDToken/aura-guard-v1.3.git
+git clone https://github.com/AuraIDToken/aura-guard-v1.3.git
 cd aura-guard-v1.3
 ./scripts/setup.sh                  # build + keygen + sign policy packs
-export AURA_API_KEY=changeme
+export AURA_API_KEY="$(openssl rand -hex 32)"
 ./target/release/aura-guard &       # start the server (foreground recommended in prod)
 ./scripts/test.sh                   # 6 golden smoke tests
 ./scripts/replay-demo.sh            # tamper-detection demo
@@ -61,7 +61,7 @@ export AURA_API_KEY=changeme
 Docker:
 
 ```bash
-export AURA_API_KEY=changeme
+export AURA_API_KEY="$(openssl rand -hex 32)"
 docker compose -f deploy/docker-compose.yml up --build
 ```
 
@@ -226,8 +226,8 @@ All keys are environment variables prefixed `AURA_`.
 | Variable | Default | Notes |
 | --- | --- | --- |
 | `AURA_BIND` | `127.0.0.1:8080` | Listen address. |
-| `AURA_API_KEY` | _(required)_ | API key (sent on `X-API-Key` or `Authorization: Bearer`). |
-| `AURA_AUTH_DISABLED` | `false` | Disables auth + signature enforcement. Dev/test only. |
+| `AURA_API_KEY` | _(required)_ | API key (sent on `X-API-Key` or `Authorization: Bearer`), minimum 32 bytes; well-known placeholder values are rejected. |
+| `AURA_AUTH_DISABLED` | `false` | Disables auth + signature enforcement. Dev/test only; rejected when `AURA_BIND` is non-loopback. |
 | `AURA_POLICIES_DIR` | `policies` | Where signed YAML packs live. |
 | `AURA_TRUSTED_SIGNERS_FILE` | `policies/trusted_signers.json` | Signer-ID → Ed25519 pubkey map. |
 | `AURA_DEFAULT_POLICY_SET` | `finance-v1` | Used when the request omits `policy_set`. |
@@ -308,7 +308,7 @@ stderr warning.
 aura-guard-v1.3/
 ├── src/                       # runtime + CLIs
 │   ├── api/{audit,health,mod}.rs
-│   ├── bin/{aura_replay,aura_sign_policy}.rs
+│   ├── bin/{aura_replay,aura_seal,aura_sign_policy}.rs
 │   ├── auth.rs                # API-key middleware (constant-time)
 │   ├── chain.rs               # hash chain construction + verification
 │   ├── config.rs              # AURA_* env config
