@@ -52,7 +52,7 @@ Requires Rust 1.86+, `jq` for the smoke test, and (optionally) Docker.
 git clone https://github.com/AuraIDToken/aura-guard-v1.3.git
 cd aura-guard-v1.3
 ./scripts/setup.sh                  # build + keygen + sign policy packs
-export AURA_API_KEY=changeme
+export AURA_API_KEY="$(openssl rand -hex 32)"
 ./target/release/aura-guard &       # start the server (foreground recommended in prod)
 ./scripts/test.sh                   # 6 golden smoke tests
 ./scripts/replay-demo.sh            # tamper-detection demo
@@ -61,7 +61,7 @@ export AURA_API_KEY=changeme
 Docker:
 
 ```bash
-export AURA_API_KEY=changeme
+export AURA_API_KEY="$(openssl rand -hex 32)"
 docker compose -f deploy/docker-compose.yml up --build
 ```
 
