@@ -90,7 +90,7 @@ fn refuses_to_start_when_trusted_signers_missing() {
 
     let code = run_and_collect_exit(&[
         ("AURA_BIND", "127.0.0.1:0".into()),
-        ("AURA_API_KEY", "x".into()),
+        ("AURA_API_KEY", "bootstrap-signers-test-key-00000000".into()),
         ("AURA_POLICIES_DIR", policies_dir.display().to_string()),
         (
             "AURA_TRUSTED_SIGNERS_FILE",

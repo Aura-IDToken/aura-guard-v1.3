@@ -8,6 +8,37 @@ use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
+/// Minimum number of bytes required for a production API key
+/// (`AURA_AUTH_DISABLED=false`).
+///
+/// Keys shorter than this limit are trivially brute-forceable and are rejected
+/// by [`Config::validate`].  Generate a key with:
+/// ```text
+/// openssl rand -hex 32   # 64 hex chars = 256 bits of entropy
+/// ```
+pub const MIN_API_KEY_LEN: usize = 32;
+
+/// Well-known placeholder values that are never accepted as production API keys.
+///
+/// Checked case-insensitively by [`Config::validate`].  All values are intentionally
+/// kept < [`MIN_API_KEY_LEN`] characters so the length guard fires first; the
+/// denylist provides an additional, human-readable error for the most common
+/// mistakes.
+const WEAK_API_KEYS: &[&str] = &[
+    "changeme",
+    "secret",
+    "password",
+    "test",
+    "default",
+    "admin",
+    "key",
+    "apikey",
+    "api-key",
+    "aura",
+    "insecure",
+    "placeholder",
+];
+
 /// Top-level runtime configuration.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Config {
@@ -199,6 +230,56 @@ impl Config {
             ));
         }
 
+        cfg.validate()?;
         Ok(cfg)
+    }
+
+    /// Validate security constraints on the loaded configuration.
+    ///
+    /// Called automatically by [`Config::from_env`]. Exposed as a public method
+    /// so that manually-constructed [`Config`] values can be validated in tests
+    /// and operator tooling without going through environment variable loading.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::AuraError::Config`] when any of the following are true:
+    ///
+    /// * `auth_disabled = true` and the bind address is **not** a loopback
+    ///   address — disabling authentication while listening on a network-reachable
+    ///   interface is a production-unsafe configuration.
+    /// * The API key is shorter than [`MIN_API_KEY_LEN`] bytes.
+    /// * The API key matches a well-known placeholder value (case-insensitive).
+    pub fn validate(&self) -> Result<(), crate::AuraError> {
+        // Guard 1: auth_disabled must not be set when listening on a non-loopback interface.
+        if self.auth_disabled && !self.bind.ip().is_loopback() {
+            return Err(crate::AuraError::Config(format!(
+                "AURA_AUTH_DISABLED=true is not permitted when binding to a \
+                 non-loopback address ({}). \
+                 Remove AURA_AUTH_DISABLED or restrict AURA_BIND to 127.0.0.1.",
+                self.bind
+            )));
+        }
+
+        // Guard 2: API key strength — length and known-placeholder checks.
+        if let Some(key) = &self.api_key {
+            if key.len() < MIN_API_KEY_LEN {
+                return Err(crate::AuraError::Config(format!(
+                    "AURA_API_KEY must be at least {MIN_API_KEY_LEN} characters \
+                     long (got {}). \
+                     Generate a strong key with: openssl rand -hex 32",
+                    key.len()
+                )));
+            }
+            let key_lower = key.to_lowercase();
+            if WEAK_API_KEYS.iter().any(|&w| key_lower == w) {
+                return Err(crate::AuraError::Config(
+                    "AURA_API_KEY is a well-known placeholder value. \
+                     Generate a strong random key with: openssl rand -hex 32"
+                        .into(),
+                ));
+            }
+        }
+
+        Ok(())
     }
 }

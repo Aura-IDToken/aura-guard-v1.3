@@ -8,7 +8,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 URL="${AURA_BIND:-http://127.0.0.1:8080}"
-KEY="${AURA_API_KEY:-changeme}"
+: "${AURA_API_KEY:?AURA_API_KEY must be set (generate with: openssl rand -hex 32)}"
+KEY="${AURA_API_KEY}"
 
 PASS=0
 FAIL=0
