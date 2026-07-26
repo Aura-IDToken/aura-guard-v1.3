@@ -228,12 +228,6 @@ impl Config {
             .extract()
             .map_err(|e| crate::AuraError::Config(e.to_string()))?;
 
-        if !cfg.auth_disabled && cfg.api_key.is_none() {
-            return Err(crate::AuraError::Config(
-                "AURA_API_KEY is required (or set AURA_AUTH_DISABLED=true for local dev)".into(),
-            ));
-        }
-
         cfg.validate()?;
         Ok(cfg)
     }
