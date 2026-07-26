@@ -11,6 +11,9 @@ name: Build and Deploy to IKS
 on:
   push:
     branches: [ "main" ]
+permissions:
+  contents: read
+
 
 # Environment variables available to all jobs and steps in this workflow
 env:
