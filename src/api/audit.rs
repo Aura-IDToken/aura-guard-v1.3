@@ -1,10 +1,11 @@
 //! `/v1/audit` handler — the core decision endpoint.
 
 use axum::extract::State;
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
 use axum::Json;
 use chrono::Utc;
 use std::sync::Arc;
+use std::time::Instant;
 use uuid::Uuid;
 
 use crate::api::AppState;
@@ -15,15 +16,57 @@ use crate::models::{AuditEntry, AuditRequest};
 use crate::normalizer::shadow_normalize;
 use crate::policy::CompiledPolicy;
 
+/// Maximum byte length accepted for an inbound `X-Request-ID` value.
+///
+/// Anything longer is silently ignored (we generate a fresh UUIDv4 instead)
+/// to prevent log-injection / unbounded-string attacks.
+const MAX_REQUEST_ID_LEN: usize = 128;
+
+/// Extract a caller-supplied correlation id from `X-Request-ID`.
+///
+/// Returns the header value when it is valid UTF-8 and within
+/// [`MAX_REQUEST_ID_LEN`] bytes; otherwise returns `None`.
+fn extract_request_id(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get("x-request-id")
+        .and_then(|v| v.to_str().ok())
+        .filter(|s| !s.is_empty() && s.len() <= MAX_REQUEST_ID_LEN)
+        .map(|s| s.to_string())
+}
+
 /// HTTP handler for `POST /v1/audit`.
 ///
 /// On success returns the canonical [`AuditEntry`] (same shape as the on-disk
 /// log line). On policy / log failures returns `400` or `503` respectively.
 pub async fn handle_audit(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(req): Json<AuditRequest>,
 ) -> Result<Json<AuditEntry>, (StatusCode, String)> {
+    let start = Instant::now();
+
+    // --- Correlation ids -------------------------------------------------
+    // `request_id` is caller-supplied for cross-service tracing (e.g. from an
+    // upstream API gateway).  `audit_id` is always server-generated and serves
+    // as the immutable identity of *this* audit decision.
+    let request_id = extract_request_id(&headers);
+    let audit_id = Uuid::new_v4().to_string();
+
+    // Attach both ids to the current tracing span so every log line emitted
+    // within this request — including middleware layers — carries them.
+    tracing::Span::current().record("audit_id", &audit_id.as_str());
+    if let Some(rid) = &request_id {
+        tracing::Span::current().record("request_id", rid.as_str());
+    }
+
     if state.log.is_halted() {
+        metrics::counter!(
+            "aura_guard_requests_total",
+            "status" => "503",
+            "decision" => "none",
+            "policy_set" => "none",
+        )
+        .increment(1);
         return Err((
             StatusCode::SERVICE_UNAVAILABLE,
             "audit log halted (fail-closed posture)".into(),
@@ -37,7 +80,20 @@ pub async fn handle_audit(
 
     // Resolve policy from the pre-warmed cache only — no lazy loads.
     let policy = resolve_policy(&state, &policy_set).map_err(|e| {
-        tracing::warn!(error = %e, policy_set = %policy_set, "unknown policy_set");
+        tracing::warn!(
+            error = %e,
+            policy_set = %policy_set,
+            audit_id = %audit_id,
+            request_id = ?request_id,
+            "unknown policy_set",
+        );
+        metrics::counter!(
+            "aura_guard_requests_total",
+            "status" => "400",
+            "decision" => "none",
+            "policy_set" => policy_set.clone(),
+        )
+        .increment(1);
         (StatusCode::BAD_REQUEST, e)
     })?;
 
@@ -72,7 +128,8 @@ pub async fn handle_audit(
     let entry = AuditEntry {
         schema: "aura-guard.audit.v1".into(),
         seq,
-        audit_id: Uuid::new_v4().to_string(),
+        audit_id,
+        request_id,
         timestamp,
         decision: decision.clone(),
         policy_set: policy.name.clone(),
@@ -80,14 +137,27 @@ pub async fn handle_audit(
         context: req.context.clone(),
         input_hash,
         shadow_hash,
-        violations,
+        violations: violations.clone(),
         prev_hash,
         chain_hash,
     };
 
     // Fail-closed: if the log refuses to write, return 503.
     state.log.append(&entry).map_err(|e| {
-        tracing::error!(error = %e, "audit log write failed — fail-closed");
+        tracing::error!(
+            error = %e,
+            audit_id = %entry.audit_id,
+            request_id = ?entry.request_id,
+            seq = entry.seq,
+            "audit log write failed — fail-closed",
+        );
+        metrics::counter!(
+            "aura_guard_requests_total",
+            "status" => "503",
+            "decision" => decision.clone(),
+            "policy_set" => policy.name.clone(),
+        )
+        .increment(1);
         (StatusCode::SERVICE_UNAVAILABLE, e.to_string())
     })?;
 
@@ -114,13 +184,40 @@ pub async fn handle_audit(
         }
     }
 
-    // Metrics.
+    // --- Metrics ---------------------------------------------------------
+    let elapsed_secs = start.elapsed().as_secs_f64();
+
     metrics::counter!(
         "aura_guard_decisions_total",
         "decision" => decision.clone(),
         "policy_set" => policy.name.clone(),
     )
     .increment(1);
+
+    metrics::counter!(
+        "aura_guard_requests_total",
+        "status" => "200",
+        "decision" => decision.clone(),
+        "policy_set" => policy.name.clone(),
+    )
+    .increment(1);
+
+    metrics::histogram!(
+        "aura_guard_request_duration_seconds",
+        "policy_set" => policy.name.clone(),
+    )
+    .record(elapsed_secs);
+
+    // Per-rule violation counters for SLO dashboards / alerting.
+    for v in &violations {
+        metrics::counter!(
+            "aura_guard_policy_violations_total",
+            "rule_id"    => v.rule.clone(),
+            "action"     => v.action.clone(),
+            "policy_set" => policy.name.clone(),
+        )
+        .increment(1);
+    }
 
     Ok(Json(entry))
 }

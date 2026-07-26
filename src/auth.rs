@@ -40,6 +40,7 @@ pub async fn require_api_key(
     }
 
     let Some(expected) = state.config.api_key.as_deref() else {
+        tracing::error!("API key not configured but auth is enabled");
         return Err((StatusCode::INTERNAL_SERVER_ERROR, "API key not configured"));
     };
 
@@ -56,6 +57,17 @@ pub async fn require_api_key(
 
     match supplied {
         Some(key) if ct_eq(key, expected) => Ok(next.run(req).await),
-        _ => Err((StatusCode::UNAUTHORIZED, "missing or invalid API key")),
+        _ => {
+            let request_id = headers
+                .get("x-request-id")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("-");
+            tracing::warn!(
+                request_id = %request_id,
+                "authentication failed: missing or invalid API key",
+            );
+            metrics::counter!("aura_guard_auth_failures_total").increment(1);
+            Err((StatusCode::UNAUTHORIZED, "missing or invalid API key"))
+        }
     }
 }
