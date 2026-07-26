@@ -8,26 +8,26 @@ use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
-/// Minimum number of bytes required for an API key.
+/// Minimum number of bytes required for a production API key
+/// (`AURA_AUTH_DISABLED=false`).
 ///
 /// Length is measured with [`str::len`], which returns **byte count**.  For
 /// the recommended ASCII/hex format (`openssl rand -hex 32` → 64 hex chars)
 /// byte count equals character count.
 ///
 /// Keys shorter than this limit are trivially brute-forceable and are rejected
-/// by [`Config::validate`] whenever `auth_disabled` is `false`.  Generate a
-/// key with:
+/// by [`Config::validate`].  Generate a key with:
 /// ```text
 /// openssl rand -hex 32   # 64 hex chars = 256 bits of entropy
 /// ```
 pub const MIN_API_KEY_LEN: usize = 32;
 
-/// Well-known placeholder values that are never accepted as API keys when
-/// `auth_disabled` is `false`.
+/// Well-known placeholder values that are never accepted as production API keys.
 ///
-/// Checked case-insensitively by [`Config::validate`] **before** the minimum-
-/// length guard so that common placeholder values produce a clear, actionable
-/// error rather than a generic "too short" message.
+/// Checked case-insensitively by [`Config::validate`].  All values are intentionally
+/// kept < [`MIN_API_KEY_LEN`] characters so the length guard fires first; the
+/// denylist provides an additional, human-readable error for the most common
+/// mistakes.
 const WEAK_API_KEYS: &[&str] = &[
     "changeme",
     "secret",
@@ -259,31 +259,27 @@ impl Config {
             return Err(crate::AuraError::Config(format!(
                 "AURA_AUTH_DISABLED=true is not permitted when binding to a \
                  non-loopback address ({}). \
-                 Remove AURA_AUTH_DISABLED or restrict AURA_BIND to 127.0.0.1 or ::1.",
+                 Remove AURA_AUTH_DISABLED or restrict AURA_BIND to 127.0.0.1.",
                 self.bind
             )));
         }
 
-        // Guard 2: API key strength — placeholder and length checks.
-        // Only enforced when auth is enabled; skip both checks in auth-disabled (dev) mode.
-        if !self.auth_disabled {
-            if let Some(key) = &self.api_key {
-                // Denylist check first so common placeholders get a clear error.
-                if WEAK_API_KEYS.iter().any(|&w| key.eq_ignore_ascii_case(w)) {
-                    return Err(crate::AuraError::Config(
-                        "AURA_API_KEY is a well-known placeholder value. \
-                         Generate a strong random key with: openssl rand -hex 32"
-                            .into(),
-                    ));
-                }
-                if key.len() < MIN_API_KEY_LEN {
-                    return Err(crate::AuraError::Config(format!(
-                        "AURA_API_KEY must be at least {MIN_API_KEY_LEN} bytes \
-                         long (got {}). \
-                         Generate a strong key with: openssl rand -hex 32",
-                        key.len()
-                    )));
-                }
+        // Guard 2: API key strength — length and known-placeholder checks.
+        if let Some(key) = &self.api_key {
+            if key.len() < MIN_API_KEY_LEN {
+                return Err(crate::AuraError::Config(format!(
+                    "AURA_API_KEY must be at least {MIN_API_KEY_LEN} characters \
+                     long (got {}). \
+                     Generate a strong key with: openssl rand -hex 32",
+                    key.len()
+                )));
+            }
+            if WEAK_API_KEYS.iter().any(|&w| key.eq_ignore_ascii_case(w)) {
+                return Err(crate::AuraError::Config(
+                    "AURA_API_KEY is a well-known placeholder value. \
+                     Generate a strong random key with: openssl rand -hex 32"
+                        .into(),
+                ));
             }
         }
 
