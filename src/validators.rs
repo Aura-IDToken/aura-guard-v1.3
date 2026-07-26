@@ -398,19 +398,19 @@ mod tests {
         ) {
             let upper = format!("{}{}{}", country, digits, rest);
             let lower = format!("{}{}{}", country.to_lowercase(), digits, rest.to_lowercase());
-            let mixed = format!("{}{}{}", 
-                country.chars().enumerate().map(|(i, c)| 
+            let mixed = format!("{}{}{}",
+                country.chars().enumerate().map(|(i, c)|
                     if i % 2 == 0 { c.to_lowercase().to_string() } else { c.to_string() }
                 ).collect::<String>(),
                 digits,
                 rest
             );
-            
+
             // Same validation result regardless of case
             let r1 = iban_check(&upper);
             let r2 = iban_check(&lower);
             let r3 = iban_check(&mixed);
-            
+
             // All should give same result (true or false, but consistent)
             prop_assert_eq!(r1, r2);
             prop_assert_eq!(r1, r3);
@@ -424,7 +424,7 @@ mod tests {
         ) {
             let no_space = format!("{}{}{}", country, digits, rest);
             let with_spaces = format!("{} {} {}", country, digits, rest);
-            
+
             // Whitespace should not affect validation outcome
             prop_assert_eq!(iban_check(&no_space), iban_check(&with_spaces));
         }
@@ -437,7 +437,7 @@ mod tests {
             let digits_only = format!("{}{}", prefix, suffix);
             let with_dashes = format!("{}-{}", prefix, suffix);
             let with_spaces = format!("{} {}", prefix, suffix);
-            
+
             // Formatting characters should not affect Luhn validation logic
             prop_assert_eq!(luhn_check(&digits_only), luhn_check(&with_dashes));
             prop_assert_eq!(luhn_check(&digits_only), luhn_check(&with_spaces));

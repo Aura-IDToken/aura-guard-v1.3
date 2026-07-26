@@ -90,7 +90,9 @@ mod tests {
     #[test]
     fn sha256_hex_is_lowercase() {
         let hash = sha256_hex("test");
-        assert!(hash.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit()));
+        assert!(hash
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit()));
     }
 
     #[test]
