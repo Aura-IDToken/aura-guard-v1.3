@@ -331,26 +331,77 @@ mod tests {
 
     #[test]
     fn compute_chain_hash_sensitive_to_all_fields() {
-        let base = ("prev", "DENY", "policy", "phash", "ctx", "ihash", "shash", 42u64, "ts");
+        let base = (
+            "prev", "DENY", "policy", "phash", "ctx", "ihash", "shash", 42u64, "ts",
+        );
         let h_base = compute_chain_hash(
             base.0, base.1, base.2, base.3, base.4, base.5, base.6, base.7, base.8,
         );
 
         // Change each field and verify hash changes
         let field_tests = [
-            ("prev", compute_chain_hash("X", base.1, base.2, base.3, base.4, base.5, base.6, base.7, base.8)),
-            ("decision", compute_chain_hash(base.0, "X", base.2, base.3, base.4, base.5, base.6, base.7, base.8)),
-            ("policy", compute_chain_hash(base.0, base.1, "X", base.3, base.4, base.5, base.6, base.7, base.8)),
-            ("phash", compute_chain_hash(base.0, base.1, base.2, "X", base.4, base.5, base.6, base.7, base.8)),
-            ("ctx", compute_chain_hash(base.0, base.1, base.2, base.3, "X", base.5, base.6, base.7, base.8)),
-            ("ihash", compute_chain_hash(base.0, base.1, base.2, base.3, base.4, "X", base.6, base.7, base.8)),
-            ("shash", compute_chain_hash(base.0, base.1, base.2, base.3, base.4, base.5, "X", base.7, base.8)),
-            ("seq", compute_chain_hash(base.0, base.1, base.2, base.3, base.4, base.5, base.6, 999, base.8)),
-            ("ts", compute_chain_hash(base.0, base.1, base.2, base.3, base.4, base.5, base.6, base.7, "X")),
+            (
+                "prev",
+                compute_chain_hash(
+                    "X", base.1, base.2, base.3, base.4, base.5, base.6, base.7, base.8,
+                ),
+            ),
+            (
+                "decision",
+                compute_chain_hash(
+                    base.0, "X", base.2, base.3, base.4, base.5, base.6, base.7, base.8,
+                ),
+            ),
+            (
+                "policy",
+                compute_chain_hash(
+                    base.0, base.1, "X", base.3, base.4, base.5, base.6, base.7, base.8,
+                ),
+            ),
+            (
+                "phash",
+                compute_chain_hash(
+                    base.0, base.1, base.2, "X", base.4, base.5, base.6, base.7, base.8,
+                ),
+            ),
+            (
+                "ctx",
+                compute_chain_hash(
+                    base.0, base.1, base.2, base.3, "X", base.5, base.6, base.7, base.8,
+                ),
+            ),
+            (
+                "ihash",
+                compute_chain_hash(
+                    base.0, base.1, base.2, base.3, base.4, "X", base.6, base.7, base.8,
+                ),
+            ),
+            (
+                "shash",
+                compute_chain_hash(
+                    base.0, base.1, base.2, base.3, base.4, base.5, "X", base.7, base.8,
+                ),
+            ),
+            (
+                "seq",
+                compute_chain_hash(
+                    base.0, base.1, base.2, base.3, base.4, base.5, base.6, 999, base.8,
+                ),
+            ),
+            (
+                "ts",
+                compute_chain_hash(
+                    base.0, base.1, base.2, base.3, base.4, base.5, base.6, base.7, "X",
+                ),
+            ),
         ];
-        
+
         for (field_name, changed_hash) in &field_tests {
-            assert_ne!(h_base, *changed_hash, "Field '{}' should affect hash", field_name);
+            assert_ne!(
+                h_base, *changed_hash,
+                "Field '{}' should affect hash",
+                field_name
+            );
         }
     }
 
