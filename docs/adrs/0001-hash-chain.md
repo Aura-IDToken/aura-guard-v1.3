@@ -1,6 +1,6 @@
 # ADR-0001: SHA-256 hash chain (vs. Merkle tree)
 
-Status: Accepted (v1.3).
+Status: Accepted in v1.3, still current.
 
 ## Context
 
@@ -26,9 +26,8 @@ entry's `prev_hash` is the canonical genesis
   single linear pass.
 * **Replay is sequential by nature** — auditors stream the file once.
 * **Merkle becomes valuable when batching to external anchors** — this was
-  delivered in v1.4 (Merkle segment manifests) and extended in v1.5
-  (strict RFC 3161 verification) without replacing the linear hash-chain
-  decision recorded here.
+  later delivered as segment manifests and optional RFC 3161 timestamping
+  without replacing the linear hash-chain decision recorded here.
 
 ## Consequences
 
@@ -36,3 +35,13 @@ entry's `prev_hash` is the canonical genesis
   recompute the head.
 * Recovery from a single corrupted line requires manual quarantine and
   re-issue from upstream — acceptable for an audit log.
+
+## Related shipped work
+
+The current implementation layers additional evidence structures on top of
+this decision rather than replacing it:
+
+* `aura-seal` and `src/{merkle,segment,sealer}.rs` add Merkle-sealed
+  segments for batch proofs and manifest-level tamper detection.
+* `src/tst_verify.rs` adds strict RFC 3161 verification for optional TSA
+  tokens attached to sealed segments.

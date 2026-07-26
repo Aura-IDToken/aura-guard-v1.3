@@ -7,7 +7,8 @@
 
 Deterministic audit middleware for AI systems. Produces an append-only,
 hash-chained, signature-verified record of every decision the model made
-against a frozen, signed rulebook. No ML, no cloud, no telemetry.
+against a frozen, signed rulebook. No external ML dependency, no cloud
+control plane, no telemetry in the deterministic core.
 
 ```
 input + signed policy  →  decision + chain_hash  →  append-only JSONL
@@ -36,8 +37,9 @@ input + signed policy  →  decision + chain_hash  →  append-only JSONL
 - **Fail-closed startup.** Process exits with code `78` (`EX_CONFIG`)
   before binding the listener if any expected policy fails to load and
   verify.
-- **Privacy by design.** Only SHA-256 hashes of prompt/response leave
-  the host. Raw text is never written to the audit log.
+- **Privacy by design.** Raw prompt/response text is never written to the
+  audit log. Optional TSA submissions send only a SHA-256 digest of the
+  sealed segment preimage, never the underlying payload.
 - **Operational surface.** API-key auth (constant-time), body and
   timeout limits, `/health` `/ready` `/version`, Prometheus `/metrics`,
   structured JSON logs via `tracing`.
@@ -46,7 +48,8 @@ input + signed policy  →  decision + chain_hash  →  append-only JSONL
 
 ## Quickstart
 
-Requires Rust 1.86+, `jq` for the smoke test, and (optionally) Docker.
+Requires Rust 1.86+, `jq` for the smoke test, `openssl` to generate an API
+key, and (optionally) Docker.
 
 ```bash
 git clone https://github.com/AuraIDToken/aura-guard-v1.3.git
@@ -57,6 +60,10 @@ export AURA_API_KEY="$(openssl rand -hex 32)"
 ./scripts/test.sh                   # 6 golden smoke tests
 ./scripts/replay-demo.sh            # tamper-detection demo
 ```
+
+`./scripts/test.sh` targets `http://127.0.0.1:8080` by default. If you start
+the server elsewhere, pass the script a full base URL via `AURA_BIND` for that
+invocation only.
 
 Docker:
 
@@ -184,8 +191,9 @@ Single audit request, release build, Linux x86_64, in-process router via
 | Tamper case, finance-v1 (Luhn-valid CC) | ~140 µs | ~7 100 req/s |
 | `aura-replay` on 10 000-entry log | ~85 ms | — |
 
-Numbers are illustrative — re-run on your hardware with
-`cargo bench` once a Criterion harness ships (planned for v1.4).
+Numbers are illustrative. This repository does not ship a `cargo bench`
+harness yet, so reproduce them with your own load tooling if you need
+host-specific numbers.
 
 ---
 
@@ -212,7 +220,7 @@ Set `RestartPreventExitStatus=78` so the fail-closed boot path is honoured.
 
 Treat as a stateless container with a writable `emptyDir` (or PVC) for the
 audit log. Wire `/health` to `livenessProbe` and `/ready` to
-`readinessProbe`. Helm chart and operator are tracked for v1.5
+`readinessProbe`. Helm chart and operator are tracked for v1.6
 ([`docs/ROADMAP.md`](docs/ROADMAP.md)).
 
 Full guide: [`docs/deployment.md`](docs/deployment.md).
@@ -354,6 +362,7 @@ aura-guard-v1.3/
 | v1.4 | Merkle batching (RFC 6962) + optional RFC 3161 timestamping, `aura-seal` CLI | shipped |
 | v1.5 | Full PKIX `.tsr` verification (RFC 3161 / RFC 5652 / RFC 5816) | shipped |
 | v1.6 | Helm chart, Kubernetes operator, HSM signing, cosign release attestations, OTLP exporter | planned |
+| v1.7 | Policy approval workflows, review queue UI, cross-policy simulation, evidence export bundles | planned |
 | v2.0 | Binary evidence envelope, cross-language verifiers, formal verification | planned |
 
 Full breakdown: [`docs/ROADMAP.md`](docs/ROADMAP.md).

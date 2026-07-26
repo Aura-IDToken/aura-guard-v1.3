@@ -6,7 +6,7 @@ by our [Code of Conduct](https://www.contributor-covenant.org/).
 ## Development environment
 
 * Rust 1.86+ (stable).
-* `pre-commit` (optional) for local hook runs.
+* `jq` for `./scripts/test.sh`.
 * Docker (optional) for the distroless image.
 
 ## Toolchain quick-start
@@ -16,6 +16,9 @@ rustup update stable
 cargo install --locked cargo-deny cargo-audit cargo-cyclonedx
 ./scripts/setup.sh
 ```
+
+`cargo-deny`, `cargo-audit`, and `cargo-cyclonedx` are only needed if you want
+to reproduce the full CI supply-chain checks locally.
 
 ## Style
 
@@ -33,12 +36,29 @@ cargo install --locked cargo-deny cargo-audit cargo-cyclonedx
   touches `chain.rs`, `log_writer.rs`, or the entry schema.
 * Update `docs/openapi.yaml` for any API change.
 
+### Local validation
+
+For production-code changes, match the current CI workflow as closely as
+practical:
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo build --locked --release --all-targets
+cargo test --locked --all-targets
+```
+
+For documentation-only changes, skip Rust validation unless your edits depend
+on behavior you also changed in code.
+
 ## Pull requests
 
-1. Open a draft PR for early review.
-2. Run `cargo fmt --all && cargo clippy --all-targets --all-features -- -D warnings && cargo test --locked --all-targets` locally.
-3. Update `CHANGELOG.md` under the relevant version heading.
-4. Squash to logical commits before requesting review.
+1. Open a draft PR early if the scope is still moving.
+2. Run the relevant validation for your change type before requesting review.
+3. Update `CHANGELOG.md` when user-facing behavior, security posture, CLI
+   flags, or operator workflows change.
+4. Keep commits logical; reviewers rely on history when auditing policy and
+   security changes.
 
 ## Security
 
@@ -50,5 +70,10 @@ When behavior, CLI flags, exit codes, or security posture changes, update docs
 in the same PR:
 
 * `README.md` (operator-facing defaults, endpoints, CLI examples)
+* `CONTRIBUTING.md` (developer workflow and validation commands)
 * `SECURITY.md` (supported versions, disclosure/SBOM posture)
 * `docs/adrs/*.md` (status/wording updates; do not rewrite accepted decisions)
+* `docs/exit-codes.md`, `docs/deployment.md`, and `docs/ROADMAP.md` when the
+  change affects operator runbooks or release status
+* `docs/ARCHITECTURE.md` or `docs/THREAT_MODEL.md` when the trust boundary or
+  evidence model changes
