@@ -43,7 +43,10 @@ fn validate_accepts_key_longer_than_minimum() {
         api_key: Some("a".repeat(MIN_API_KEY_LEN + 32)),
         ..base_config()
     };
-    assert!(cfg.validate().is_ok(), "key longer than minimum must be accepted");
+    assert!(
+        cfg.validate().is_ok(),
+        "key longer than minimum must be accepted"
+    );
 }
 
 #[test]
@@ -52,7 +55,9 @@ fn validate_rejects_key_one_below_minimum_length() {
         api_key: Some("a".repeat(MIN_API_KEY_LEN - 1)),
         ..base_config()
     };
-    let err = cfg.validate().expect_err("key one char below minimum must be rejected");
+    let err = cfg
+        .validate()
+        .expect_err("key one char below minimum must be rejected");
     let msg = err.to_string();
     assert!(
         msg.contains("at least"),
