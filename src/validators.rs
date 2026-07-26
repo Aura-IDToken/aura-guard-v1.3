@@ -284,7 +284,7 @@ mod tests {
     fn iban_various_valid_countries() {
         // FR (France) - 27 chars
         assert!(iban_check("FR1420041010050500013M02606"));
-        // GB (UK) - 22 chars  
+        // GB (UK) - 22 chars
         assert!(iban_check("GB29NWBK60161331926819"));
         // IT (Italy) - 27 chars
         assert!(iban_check("IT60X0542811101000000123456"));

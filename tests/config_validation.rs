@@ -323,15 +323,14 @@ fn validate_rejects_admin_key() {
 
 #[test]
 fn validate_rejects_key_with_placeholder_substring() {
-    // Keys that contain placeholders should also be rejected
+    // Regression test: verify substring matching behavior.
+    // Implementation detects placeholder substrings like "changeme", "password", etc.
     let cfg = Config {
         api_key: Some("my-changeme-key".to_string()),
         ..base_config()
     };
-    // This might pass or fail depending on implementation - document behavior
-    // Current implementation checks exact match, so this should pass
-    // But it's a security edge case worth testing
-    let _ = cfg.validate();
+    // Should fail because "changeme" substring is detected
+    assert!(cfg.validate().is_err(), "Keys containing 'changeme' substring should be rejected");
 }
 
 #[test]
