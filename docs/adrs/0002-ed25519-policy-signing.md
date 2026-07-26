@@ -30,7 +30,7 @@ ID.
 * **Speed + size** — 32-byte keys, 64-byte signatures, sub-millisecond verify.
 * **Audited implementation** — `ed25519-dalek` v2 is widely used and audited.
 * **HSM friendly** — Ed25519 is supported by mainstream HSMs / cloud KMS for
-  the v1.5 enterprise roadmap.
+  the v1.6 enterprise roadmap.
 
 ## Consequences
 

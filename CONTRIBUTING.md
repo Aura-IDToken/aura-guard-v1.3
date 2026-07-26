@@ -36,10 +36,19 @@ cargo install --locked cargo-deny cargo-audit cargo-cyclonedx
 ## Pull requests
 
 1. Open a draft PR for early review.
-2. Run `cargo fmt --all && cargo clippy --all-targets -- -D warnings && cargo test --all-targets` locally.
+2. Run `cargo fmt --all && cargo clippy --all-targets --all-features -- -D warnings && cargo test --locked --all-targets` locally.
 3. Update `CHANGELOG.md` under the relevant version heading.
 4. Squash to logical commits before requesting review.
 
 ## Security
 
 Do not file security issues publicly — see [SECURITY.md](SECURITY.md).
+
+## Documentation sync checklist
+
+When behavior, CLI flags, exit codes, or security posture changes, update docs
+in the same PR:
+
+* `README.md` (operator-facing defaults, endpoints, CLI examples)
+* `SECURITY.md` (supported versions, disclosure/SBOM posture)
+* `docs/adrs/*.md` (status/wording updates; do not rewrite accepted decisions)

@@ -38,6 +38,16 @@ The high-level guarantees:
   must restart the service after restoring filesystem capacity.
 * **Memory safety** — the runtime is built with `#![forbid(unsafe_code)]`.
 
+## Configuration guardrails
+
+Security-relevant startup checks enforced by `Config::validate`:
+
+* `AURA_API_KEY` is mandatory unless `AURA_AUTH_DISABLED=true`.
+* API keys shorter than 32 bytes are rejected.
+* Well-known placeholder API keys (for example `changeme`, `password`,
+  `apikey`) are rejected.
+* `AURA_AUTH_DISABLED=true` is rejected when binding to a non-loopback address.
+
 ## Out-of-scope
 
 Network-layer DoS, kernel exploits, supply-chain attacks on the build host,
@@ -48,4 +58,4 @@ itself. See `docs/THREAT_MODEL.md` §5.
 
 Releases are built with `cargo build --locked --release`, scanned with
 `cargo-audit` and `cargo-deny`, and accompanied by a CycloneDX SBOM
-(`sbom.cdx.json`). Signed releases (cosign / sigstore) are planned for v1.4.
+(`sbom.cdx.json`). Signed releases (cosign / sigstore) are planned for v1.6.
