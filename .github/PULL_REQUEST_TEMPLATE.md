@@ -28,7 +28,7 @@ Complete every applicable item before requesting review.
 - [ ] Overall test coverage is not reduced by this PR
 
 **Security-critical paths**
-- [ ] Changes to `src/crypto.rs`, `src/chain.rs`, `src/auth.rs`, or `src/engine.rs` have been reviewed with the security team prior to submission
+- [ ] Changes to `src/crypto.rs`, `src/chain.rs`, `src/auth.rs`, or `src/engine.rs` have been flagged to @AuraIDToken prior to submission (CODEOWNERS will auto-request review)
 - [ ] No secrets, keys, or credentials are introduced into source or configuration files
 - [ ] Any new dependency has been checked with `cargo audit` and `cargo deny`
 

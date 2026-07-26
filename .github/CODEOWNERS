@@ -1,26 +1,28 @@
-# Default owners for the entire repository.
-# All PRs require review from the core team unless a more specific rule below applies.
-*       @AuraIDToken/core-team
+# Default owner for the entire repository.
+# Every PR requires review from @AuraIDToken unless a more specific rule below applies.
+# NOTE: Replace @AuraIDToken with individual GitHub usernames or org team slugs
+# (e.g. @AuraIDToken/security-team) once those teams are created in the GitHub org.
+*       @AuraIDToken
 
-# Security-critical paths — mandatory security-team review for every change.
+# Security-critical paths — require @AuraIDToken review on every change.
 # Requirement: Enterprise Readiness Audit T-02 (P0).
 # Any modification to cryptographic primitives, the hash-chain, the decision
-# engine, or the authentication middleware must be approved by @AuraIDToken/security-team
-# before merging, regardless of who else has reviewed the PR.
-src/crypto.rs   @AuraIDToken/security-team
-src/chain.rs    @AuraIDToken/security-team
-src/engine.rs   @AuraIDToken/security-team
-src/auth.rs     @AuraIDToken/security-team
+# engine, or the authentication middleware must be approved before merging.
+src/crypto.rs   @AuraIDToken
+src/chain.rs    @AuraIDToken
+src/engine.rs   @AuraIDToken
+src/auth.rs     @AuraIDToken
 
 # Policy assets — changes to signed policies or the trusted-signers registry
-# require security-team sign-off.
-policies/                   @AuraIDToken/security-team
-trusted_signers.json        @AuraIDToken/security-team
+# carry the same weight as cryptographic code changes.
+policies/                   @AuraIDToken
+trusted_signers.json        @AuraIDToken
 
-# CI/CD workflows — infrastructure changes need core-team approval.
-.github/workflows/          @AuraIDToken/core-team
+# CI/CD workflows — changes to the pipeline can suppress security checks.
+.github/workflows/          @AuraIDToken
 
-# Compliance and governance documents — owned by the security team.
-docs/compliance-brief.md    @AuraIDToken/security-team
-docs/threat-model.md        @AuraIDToken/security-team
-docs/adr/                   @AuraIDToken/security-team
+# Compliance and governance documents are audit artifacts;
+# inaccuracies have regulatory consequences.
+docs/compliance-brief.md    @AuraIDToken
+docs/threat-model.md        @AuraIDToken
+docs/adr/                   @AuraIDToken
