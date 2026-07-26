@@ -18,9 +18,9 @@ use crate::policy::CompiledPolicy;
 
 /// Maximum byte length accepted for an inbound `X-Request-ID` value.
 ///
-/// Anything longer is silently ignored (we generate a fresh UUIDv4 instead)
-/// to prevent log-injection / unbounded-string attacks.
-const MAX_REQUEST_ID_LEN: usize = 128;
+/// Anything longer is silently ignored (the entry's `request_id` is simply
+/// omitted) to prevent log-injection / unbounded-string attacks.
+pub(crate) const MAX_REQUEST_ID_LEN: usize = 128;
 
 /// Extract a caller-supplied correlation id from `X-Request-ID`.
 ///
@@ -52,9 +52,9 @@ pub async fn handle_audit(
     let request_id = extract_request_id(&headers);
     let audit_id = Uuid::new_v4().to_string();
 
-    // Attach both ids to the current tracing span so every log line emitted
-    // within this request — including middleware layers — carries them.
-    tracing::Span::current().record("audit_id", &audit_id.as_str());
+    // Attach both ids to the current tracing span so log lines emitted
+    // within this handler carry them.
+    tracing::Span::current().record("audit_id", audit_id.as_str());
     if let Some(rid) = &request_id {
         tracing::Span::current().record("request_id", rid.as_str());
     }
@@ -91,7 +91,10 @@ pub async fn handle_audit(
             "aura_guard_requests_total",
             "status" => "400",
             "decision" => "none",
-            "policy_set" => policy_set.clone(),
+            // Fixed label value: `policy_set` is caller-supplied here, and
+            // using it verbatim would allow unbounded metric label
+            // cardinality. The requested value is preserved in the log line.
+            "policy_set" => "unknown",
         )
         .increment(1);
         (StatusCode::BAD_REQUEST, e)
@@ -137,7 +140,7 @@ pub async fn handle_audit(
         context: req.context.clone(),
         input_hash,
         shadow_hash,
-        violations: violations.clone(),
+        violations,
         prev_hash,
         chain_hash,
     };
@@ -209,7 +212,7 @@ pub async fn handle_audit(
     .record(elapsed_secs);
 
     // Per-rule violation counters for SLO dashboards / alerting.
-    for v in &violations {
+    for v in &entry.violations {
         metrics::counter!(
             "aura_guard_policy_violations_total",
             "rule_id"    => v.rule.clone(),
