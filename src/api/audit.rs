@@ -52,8 +52,8 @@ pub async fn handle_audit(
     let request_id = extract_request_id(&headers);
     let audit_id = Uuid::new_v4().to_string();
 
-    // Attach both ids to the current tracing span so every log line emitted
-    // within this request — including middleware layers — carries them.
+    // Attach both ids to the current tracing span so log lines emitted
+    // within this handler carry them.
     tracing::Span::current().record("audit_id", audit_id.as_str());
     if let Some(rid) = &request_id {
         tracing::Span::current().record("request_id", rid.as_str());
@@ -91,7 +91,10 @@ pub async fn handle_audit(
             "aura_guard_requests_total",
             "status" => "400",
             "decision" => "none",
-            "policy_set" => policy_set.clone(),
+            // Fixed label value: `policy_set` is caller-supplied here, and
+            // using it verbatim would allow unbounded metric label
+            // cardinality. The requested value is preserved in the log line.
+            "policy_set" => "unknown",
         )
         .increment(1);
         (StatusCode::BAD_REQUEST, e)
@@ -209,7 +212,7 @@ pub async fn handle_audit(
     .record(elapsed_secs);
 
     // Per-rule violation counters for SLO dashboards / alerting.
-    for v in &violations {
+    for v in &entry.violations {
         metrics::counter!(
             "aura_guard_policy_violations_total",
             "rule_id"    => v.rule.clone(),
