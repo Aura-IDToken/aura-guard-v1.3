@@ -20,7 +20,7 @@ use crate::policy::CompiledPolicy;
 ///
 /// Anything longer is silently ignored (we generate a fresh UUIDv4 instead)
 /// to prevent log-injection / unbounded-string attacks.
-const MAX_REQUEST_ID_LEN: usize = 128;
+pub(crate) const MAX_REQUEST_ID_LEN: usize = 128;
 
 /// Extract a caller-supplied correlation id from `X-Request-ID`.
 ///
