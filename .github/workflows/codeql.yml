@@ -2,9 +2,9 @@ name: codeql
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
   schedule:
     - cron: '17 3 * * 1'
 
@@ -16,18 +16,26 @@ jobs:
   analyze:
     name: Analyze (CodeQL)
     runs-on: ubuntu-latest
+
     strategy:
       fail-fast: false
       matrix:
-        language: [ 'rust' ]
+        language: [rust]
+
     steps:
       - uses: actions/checkout@v4
+
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
-          build-mode: autobuild
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
+          build-mode: none
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build project
+        run: cargo build --workspace --all-targets --locked
+
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
