@@ -61,9 +61,7 @@ pub async fn require_api_key(
             let request_id = headers
                 .get("x-request-id")
                 .and_then(|v| v.to_str().ok())
-                .filter(|s| {
-                    !s.is_empty() && s.len() <= crate::api::audit::MAX_REQUEST_ID_LEN
-                })
+                .filter(|s| !s.is_empty() && s.len() <= crate::api::audit::MAX_REQUEST_ID_LEN)
                 .unwrap_or("-");
             tracing::warn!(
                 request_id = %request_id,
