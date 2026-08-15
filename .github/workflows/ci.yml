@@ -84,3 +84,36 @@ jobs:
         with:
           name: sbom
           path: sbom.cdx.json
+
+  # --- D-3 evidence generation (temporary, instrumentation-only) ----------
+  # Executes the existing chain implementation against the pinned D-3
+  # semantic fixture and preserves the raw canonical byte stream as an
+  # artifact. Adds no build/test steps to the jobs above.
+  d3-evidence:
+    name: D-3 chain evidence export
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.86.0
+      - uses: Swatinem/rust-cache@v2
+      - name: Record toolchain provenance
+        run: |
+          echo "D3_RUST_VERSION=$(rustc --version)" >> "$GITHUB_ENV"
+          echo "D3_CARGO_VERSION=$(cargo --version)" >> "$GITHUB_ENV"
+      - name: Regression control (chain_hash unchanged by instrumentation)
+        run: cargo test --locked --test d3_chain_observability -- --nocapture
+      - name: Execute existing chain implementation against the D-3 fixture
+        run: cargo run --locked --example d3_chain_export
+      - name: Artifact provenance
+        run: |
+          echo "fixture   $(sha256sum D3_REAL_CHAIN_SEMANTIC_FIXTURE.json)"
+          echo "output    $(sha256sum D3_REAL_CHAIN_RUST_OUTPUT.json)"
+          echo "canonical $(sha256sum D3_REAL_CHAIN_CANONICAL.bin)"
+          echo "canonical bytes: $(wc -c < D3_REAL_CHAIN_CANONICAL.bin)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: d3-real-chain-rust-output
+          path: |
+            D3_REAL_CHAIN_RUST_OUTPUT.json
+            D3_REAL_CHAIN_CANONICAL.bin
+            D3_REAL_CHAIN_SEMANTIC_FIXTURE.json

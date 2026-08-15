@@ -1,0 +1,42 @@
+{
+  "fixture_id": "D3_REAL_CHAIN_SEMANTIC_FIXTURE",
+  "fixture_version": "1",
+  "purpose": "Controlled semantic fixture driving the existing aura-guard chain canonicalization for D-3 evidence generation. Values are pinned literals; the fixture is immutable.",
+  "target": {
+    "repository": "AuraIDToken/aura-guard-v1.3",
+    "entrypoint": "aura_guard::chain::compute_chain_hash",
+    "preimage_builder": "aura_guard::chain::chain_preimage",
+    "digest": "aura_guard::crypto::sha256_hex"
+  },
+  "notes": {
+    "field_classification": "chain_preimage_fields are the nine values concatenated by src/chain.rs:36-47. input_state fields are provenance only and are NOT consumed by the digest except where they also appear in chain_preimage_fields.",
+    "original_string": "Declared as a literal by this fixture. The construction of `original` from context/prompt/response is inlined at src/api/audit.rs:104-107 and is NOT exposed as a callable function; deriving it is therefore OUT OF SCOPE for this experiment and is not reconstructed here.",
+    "determinism": "All nine preimage fields are supplied by this fixture. src/chain.rs::compute_chain_hash reads no ambient state (no clock, no log), so no live timestamp or sequence state participates."
+  },
+  "input_state": {
+    "original": "Finance Bot Card 4111-1111-1111-1111 please ok",
+    "policy_file": "policies/finance-v1.yaml"
+  },
+  "chain_preimage_fields": {
+    "prev_hash": "b93b4ade8c758fa0086b464ac445fe6109681da57a99760eeb7f7bce3623562d",
+    "decision": "DENY",
+    "policy_set": "finance-v1",
+    "policy_hash": "5e9ab2b25e6a748aeff8610b341f1ec9ba4b281df9e22304b1066fadf082b35d",
+    "context": "Finance Bot",
+    "input_hash": "c2e552214097f038caddfa8cd86daca6eb0197a1feeab0234dda34ba3dd1413a",
+    "shadow_hash": "534b346b8ffd5ce800097347fce1fcfe4d0d3dc6ad20c04b3213fec3455c12a6",
+    "seq": 0,
+    "timestamp": "2026-01-01T00:00:00+00:00"
+  },
+  "cross_checks": {
+    "prev_hash_equals_genesis": "aura_guard::crypto::genesis_hash()",
+    "policy_hash_equals_policy_file": "aura_guard::crypto::sha256_bytes_hex(fs::read(policies/finance-v1.yaml))",
+    "input_hash_equals": "aura_guard::crypto::sha256_hex(original)",
+    "shadow_hash_equals": "aura_guard::crypto::sha256_hex(aura_guard::normalizer::shadow_normalize(original))"
+  },
+  "expected": {
+    "note": "Recorded from the UNINSTRUMENTED baseline main@443f72e before any change to src/chain.rs. Serves as the section 14 before/after regression control.",
+    "chain_hash_before_instrumentation": "6eb514bf3ce334676d894e669e3d9598d594cc7e21c9bb694daad017f8c20222",
+    "canonical_bytes_length": 315
+  }
+}
