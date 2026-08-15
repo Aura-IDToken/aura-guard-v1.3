@@ -203,6 +203,41 @@ A Python/Rust byte comparison remains **NOT EXECUTED**.
 
 ---
 
+## 9a. CI execution (section 12)
+
+Executed on the existing GitHub Actions infrastructure — a new `d3-evidence`
+job appended to `ci.yml`; no existing job was modified.
+
+| | |
+|---|---|
+| workflow run | [31884628865](https://github.com/AuraIDToken/aura-guard-v1.3/actions/runs/31884628865) |
+| job | `D-3 chain evidence export` (id 95012019247) — **success** |
+| runner | `ubuntu-latest`, `RUNNER_OS=Linux`, `RUNNER_ARCH=X64` |
+| rustc / cargo | `1.86.0 (05f9846f8 2025-03-31)` / `1.86.0 (adf9b6ad1 2025-02-28)` |
+| regression control | 5 passed, 0 failed |
+| artifact | `d3-real-chain-rust-output` (id 9246932001, 3226 bytes) |
+
+CI-observed values are identical to the local run:
+
+```
+rust_canonical_bytes_length          315
+rust_chain_hash                      6eb514bf3ce334676d894e669e3d9598d594cc7e21c9bb694daad017f8c20222
+instrumentation_control.identical    true
+hash_independence_check              true
+all four cross-checks                true
+```
+
+The canonical bytes and digest matched across two environments and two rustc
+versions (local 1.94.1, CI 1.86.0). That is an observation about these two
+environments and this one fixture — not a determinism claim.
+
+Note on `commit_sha` in the artifact: it reads
+`3ae36f84f905b1a1c80be08eaac525e59542f252`, the ephemeral `refs/pull/55/merge`
+commit GitHub synthesises for `pull_request` events, not the branch head
+`70b9881`. Recorded verbatim as observed.
+
+---
+
 ## 10. Local artifact hashes
 
 | Artifact | SHA-256 |

@@ -8,8 +8,10 @@
 | branch | `d3/real-chain-observability` |
 | base_commit | `443f72e58483c3ea6112ea517647cc0dbf459960` (`main`) |
 | base verified | Yes — `git fetch origin main` on execution day returned `443f72e`; PR #54 confirmed **not merged** (commit `6661982` present only on `origin/d3/real-chain-fixture-export`) |
-| execution_commit | see `commit_sha` in the CI artifact `D3_REAL_CHAIN_RUST_OUTPUT.json` |
-| workflow_run_id | see `workflow_run_id` in the CI artifact |
+| execution_commit (branch head) | `70b98818be3dddb0f753a7553bc7a40018d0b1b5` |
+| `GITHUB_SHA` recorded by CI | `3ae36f84f905b1a1c80be08eaac525e59542f252` — the ephemeral `refs/pull/55/merge` commit GitHub creates for `pull_request` events, **not** the branch head. Recorded verbatim as observed; the code executed is the tree of `70b9881` merged onto `main@443f72e`, which are identical trees for `src/` since `main` is unchanged. |
+| workflow_run_id | `31884628865` |
+| CI conclusion | `d3-evidence` job **success**; artifact `d3-real-chain-rust-output` (id `9246932001`, 3226 bytes, zip SHA-256 `27cfd127cf35d6f5e0586df5836a8576d826359a2e440b4abe457d6fd5d82c74`) |
 
 ## Environment — local execution
 
@@ -25,9 +27,34 @@
 
 | | |
 |---|---|
-| runner | `ubuntu-latest` (GitHub Actions) |
-| toolchain | `dtolnay/rust-toolchain@1.86.0` — the pin already used by every other job in `ci.yml` |
-| recorded at runtime | `RUNNER_OS`, `RUNNER_ARCH`, `D3_RUST_VERSION`, `D3_CARGO_VERSION`, `GITHUB_SHA`, `GITHUB_RUN_ID` are captured into the output JSON by the `d3-evidence` job |
+| runner | `ubuntu-latest` (GitHub Actions), runner id 1000001388 |
+| RUNNER_OS / RUNNER_ARCH | `Linux` / `X64` |
+| rustc | `rustc 1.86.0 (05f9846f8 2025-03-31)` |
+| cargo | `cargo 1.86.0 (adf9b6ad1 2025-02-28)` |
+| toolchain pin | `dtolnay/rust-toolchain@1.86.0` — already used by every other job in `ci.yml` |
+
+### CI-observed results
+
+| | |
+|---|---|
+| regression control | `cargo test --test d3_chain_observability` — **5 passed, 0 failed** |
+| `rust_canonical_bytes_length` | **315** |
+| `rust_chain_hash` | `6eb514bf3ce334676d894e669e3d9598d594cc7e21c9bb694daad017f8c20222` |
+| `instrumentation_control.identical` | **true** |
+| `hash_independence_check.matches_chain_hash` | **true** |
+| all four cross-checks | **true** |
+| `D3_REAL_CHAIN_CANONICAL.bin` SHA-256 (CI) | `6eb514bf3ce334676d894e669e3d9598d594cc7e21c9bb694daad017f8c20222` |
+| `D3_REAL_CHAIN_RUST_OUTPUT.json` SHA-256 (CI) | `42158c2660d690f8cb23d9e128ffd312b7a98035f43abcaab9412bc1128fdf9c` |
+
+The CI copy of `D3_REAL_CHAIN_RUST_OUTPUT.json` hashes differently from the
+committed local copy because its CI-metadata fields are populated rather than
+`unavailable`. The evidence fields — canonical string, canonical bytes hex,
+byte length and chain hash — are identical in both.
+
+**Cross-environment observation:** the canonical bytes and digest are identical
+between the local container (rustc 1.94.1, this session's arch) and the CI runner
+(rustc 1.86.0, Linux X64). This is an observation about two environments and one
+fixture; it is not a determinism claim.
 
 ## Fixture
 
