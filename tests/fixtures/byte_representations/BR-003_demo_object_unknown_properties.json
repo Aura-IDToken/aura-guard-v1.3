@@ -1,0 +1,15 @@
+{
+  "construction_id": "SEM-002_framework_demonstration_object",
+  "encoding": "UNKNOWN",
+  "field_order": "UNKNOWN",
+  "fixture_id": "BR-003_demo_object_unknown_properties",
+  "governance": "DQ-006 unresolved. This fixture does not establish canonical serialization.",
+  "input_bytes_hex": "00ff10807f",
+  "input_length": 5,
+  "notes": "Framework demonstration object. Properties are UNKNOWN because nothing establishes them; they are deliberately not inferred.",
+  "representation_id": "synthetic_opaque",
+  "separator": "UNKNOWN",
+  "sha256": "c782a94468b31a3adcfc0c8ba3cfaedc934dac022f8e99b12c22eba80626f2c5",
+  "source": "synthetic; constructed in tests/byte_representations.rs",
+  "status": "PROPOSED"
+}
