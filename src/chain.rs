@@ -19,6 +19,43 @@ use crate::{AuraError, Result};
 /// base64 or any timestamp character.
 const SEP: &str = "|";
 
+/// Build the canonical preimage string that seeds `chain_hash`.
+///
+/// This returns the exact byte sequence that [`compute_chain_hash`] hashes.
+/// It is exposed so external verifiers and evidence tooling can observe the
+/// preimage directly instead of reconstructing it, mirroring the existing
+/// [`crate::segment::SegmentManifest::segment_chain_preimage`] accessor at the
+/// segment layer.
+///
+/// Observational only: the field set, field order, separator and encoding are
+/// unchanged from the original inline construction.
+#[must_use]
+#[allow(clippy::too_many_arguments)]
+pub fn chain_preimage(
+    prev_hash: &str,
+    decision: &str,
+    policy_set: &str,
+    policy_hash: &str,
+    context: &str,
+    input_hash: &str,
+    shadow_hash: &str,
+    seq: u64,
+    timestamp: &str,
+) -> String {
+    [
+        prev_hash,
+        decision,
+        policy_set,
+        policy_hash,
+        context,
+        input_hash,
+        shadow_hash,
+        &seq.to_string(),
+        timestamp,
+    ]
+    .join(SEP)
+}
+
 /// Compute `chain_hash` for an in-progress entry.
 #[must_use]
 #[allow(clippy::too_many_arguments)]
@@ -33,7 +70,7 @@ pub fn compute_chain_hash(
     seq: u64,
     timestamp: &str,
 ) -> String {
-    let canonical = [
+    let canonical = chain_preimage(
         prev_hash,
         decision,
         policy_set,
@@ -41,10 +78,9 @@ pub fn compute_chain_hash(
         context,
         input_hash,
         shadow_hash,
-        &seq.to_string(),
+        seq,
         timestamp,
-    ]
-    .join(SEP);
+    );
     sha256_hex(&canonical)
 }
 

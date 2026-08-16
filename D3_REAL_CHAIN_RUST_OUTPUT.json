@@ -1,0 +1,42 @@
+{
+  "cargo_version": "unavailable",
+  "commit_sha": "unavailable",
+  "cross_checks": {
+    "input_hash_equals_sha256_of_original": true,
+    "observed": {
+      "genesis_hash": "b93b4ade8c758fa0086b464ac445fe6109681da57a99760eeb7f7bce3623562d",
+      "input_hash": "c2e552214097f038caddfa8cd86daca6eb0197a1feeab0234dda34ba3dd1413a",
+      "policy_hash": "5e9ab2b25e6a748aeff8610b341f1ec9ba4b281df9e22304b1066fadf082b35d",
+      "shadow_hash": "534b346b8ffd5ce800097347fce1fcfe4d0d3dc6ad20c04b3213fec3455c12a6",
+      "shadow_normalized": "finance bot card 4111-1111-1111-1111 please ok"
+    },
+    "policy_hash_equals_policy_file": true,
+    "prev_hash_equals_genesis": true,
+    "shadow_hash_equals_sha256_of_shadow": true
+  },
+  "entrypoint": {
+    "digest": "aura_guard::chain::compute_chain_hash -> aura_guard::crypto::sha256_hex",
+    "preimage": "aura_guard::chain::chain_preimage (src/chain.rs)"
+  },
+  "experiment": "D-3 real Rust chain execution",
+  "fixture_path": "D3_REAL_CHAIN_SEMANTIC_FIXTURE.json",
+  "fixture_sha256": "185aa4a81ff571f0ae5e33aaf00f0fb7ea174b9d728b6dab789ab1a468afdae2",
+  "hash_independence_check": {
+    "matches_chain_hash": true,
+    "sha256_of_exported_bytes": "6eb514bf3ce334676d894e669e3d9598d594cc7e21c9bb694daad017f8c20222"
+  },
+  "instrumentation_control": {
+    "chain_hash_after_instrumentation": "6eb514bf3ce334676d894e669e3d9598d594cc7e21c9bb694daad017f8c20222",
+    "chain_hash_before_instrumentation": "6eb514bf3ce334676d894e669e3d9598d594cc7e21c9bb694daad017f8c20222",
+    "identical": true
+  },
+  "repository": "unavailable",
+  "runner_arch": "unavailable",
+  "runner_os": "unavailable",
+  "rust_canonical_bytes_hex": "623933623461646538633735386661303038366234363461633434356665363130393638316461353761393937363065656237663762636533363233353632647c44454e597c66696e616e63652d76317c356539616232623235653661373438616566663836313062333431663165633962613462323831646639653232333034623130363666616466303832623335647c46696e616e636520426f747c633265353532323134303937663033386361646466613863643836646163613665623031393761316665656162303233346464613334626133646431343133617c353334623334366238666664356365383030303937333437666365316663666534643064336463366164323063303462333231336665633334353563313261367c307c323032362d30312d30315430303a30303a30302b30303a3030",
+  "rust_canonical_bytes_length": 315,
+  "rust_canonical_string": "b93b4ade8c758fa0086b464ac445fe6109681da57a99760eeb7f7bce3623562d|DENY|finance-v1|5e9ab2b25e6a748aeff8610b341f1ec9ba4b281df9e22304b1066fadf082b35d|Finance Bot|c2e552214097f038caddfa8cd86daca6eb0197a1feeab0234dda34ba3dd1413a|534b346b8ffd5ce800097347fce1fcfe4d0d3dc6ad20c04b3213fec3455c12a6|0|2026-01-01T00:00:00+00:00",
+  "rust_chain_hash": "6eb514bf3ce334676d894e669e3d9598d594cc7e21c9bb694daad017f8c20222",
+  "rust_version": "unavailable",
+  "workflow_run_id": "unavailable"
+}
