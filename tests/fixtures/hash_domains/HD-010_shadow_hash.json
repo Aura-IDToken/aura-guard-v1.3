@@ -1,0 +1,11 @@
+{
+  "construction_id": "shadow_hash",
+  "fixture_id": "HD-010_shadow_hash",
+  "input_bytes_hex": "66696e616e636520626f74206361726420343131312d313131312d313131312d3131313120706c6561736520692063616e6e6f742070726f6365737320746861742e",
+  "input_length": 66,
+  "input_utf8": "finance bot card 4111-1111-1111-1111 please i cannot process that.",
+  "not_canonical": "DQ-002 and DQ-006 unresolved; these bytes carry no specification standing.",
+  "sha256": "9b10cdcd1de8da4dea0ad01d9cece40b91c007876a787e5e7ac493c4b3221c42",
+  "source_ref": "src/api/audit.rs:108,110 (sha256_hex over shadow_normalize output)",
+  "status": "AS-IS IMPLEMENTATION BYTES — OBSERVED PREIMAGE"
+}

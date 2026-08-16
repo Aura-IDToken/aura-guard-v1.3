@@ -1,0 +1,11 @@
+{
+  "construction_id": "entry_genesis_hash",
+  "fixture_id": "HD-003_entry_genesis",
+  "input_bytes_hex": "415552412d47554152442d47454e455349532d76312e33",
+  "input_length": 23,
+  "input_utf8": "AURA-GUARD-GENESIS-v1.3",
+  "not_canonical": "DQ-002 and DQ-006 unresolved; these bytes carry no specification standing.",
+  "sha256": "b93b4ade8c758fa0086b464ac445fe6109681da57a99760eeb7f7bce3623562d",
+  "source_ref": "src/crypto.rs:22-29 (genesis_hash)",
+  "status": "AS-IS IMPLEMENTATION BYTES — OBSERVED PREIMAGE"
+}

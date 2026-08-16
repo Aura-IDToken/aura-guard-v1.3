@@ -1,0 +1,213 @@
+{
+  "artifact": "INFRA-001 hash construction inventory",
+  "constructions": [
+    {
+      "algorithm": "SHA-256",
+      "constants": "genesis seed for entry 0",
+      "encoding": "UTF-8 -> lowercase hex",
+      "exercised": true,
+      "field_order": "prev_hash, decision, policy_set, policy_hash, context, input_hash, shadow_hash, seq, timestamp",
+      "fixture": "HD-001_entry_chain_preimage",
+      "id": "entry_chain_hash",
+      "input": "9 fields joined",
+      "separator": "U+007C",
+      "source": "src/chain.rs:25-49"
+    },
+    {
+      "algorithm": "SHA-256",
+      "constants": "segment genesis seed",
+      "encoding": "UTF-8 -> lowercase hex",
+      "exercised": true,
+      "field_order": "prev_segment_chain_hash, merkle_root, first_seq, last_seq, sealed_at",
+      "fixture": "HD-002_segment_chain_preimage",
+      "id": "segment_chain_hash",
+      "input": "5 fields joined",
+      "separator": "U+007C",
+      "source": "src/segment.rs:91-118"
+    },
+    {
+      "algorithm": "SHA-256",
+      "constants": "AURA-GUARD-GENESIS-v1.3",
+      "encoding": "UTF-8 -> lowercase hex",
+      "exercised": true,
+      "field_order": "n/a",
+      "fixture": "HD-003_entry_genesis",
+      "id": "entry_genesis_hash",
+      "input": "literal \"AURA-GUARD-GENESIS-v1.3\"",
+      "separator": "n/a",
+      "source": "src/crypto.rs:22-29"
+    },
+    {
+      "algorithm": "SHA-256",
+      "constants": "AURA-GUARD-SEGMENT-GENESIS-v1",
+      "encoding": "raw bytes -> lowercase hex",
+      "exercised": true,
+      "field_order": "n/a",
+      "fixture": "HD-004_segment_genesis",
+      "id": "segment_genesis_hash",
+      "input": "literal b\"AURA-GUARD-SEGMENT-GENESIS-v1\"",
+      "separator": "n/a",
+      "source": "src/segment.rs:46-50"
+    },
+    {
+      "algorithm": "SHA-256",
+      "constants": "0x00",
+      "encoding": "raw bytes",
+      "exercised": true,
+      "field_order": "n/a",
+      "fixture": "HD-005_merkle_leaf",
+      "id": "merkle_leaf_hash",
+      "input": "0x00 || data",
+      "separator": "1-byte tag 0x00",
+      "source": "src/merkle.rs:27-34"
+    },
+    {
+      "algorithm": "SHA-256",
+      "constants": "0x01",
+      "encoding": "raw bytes",
+      "exercised": true,
+      "field_order": "left then right",
+      "fixture": "HD-006_merkle_node",
+      "id": "merkle_node_hash",
+      "input": "0x01 || left || right",
+      "separator": "1-byte tag 0x01",
+      "source": "src/merkle.rs:36-44"
+    },
+    {
+      "algorithm": "SHA-256",
+      "constants": "none",
+      "encoding": "raw bytes",
+      "exercised": true,
+      "field_order": "n/a",
+      "fixture": "HD-007_merkle_empty_root",
+      "id": "merkle_empty_root",
+      "input": "empty",
+      "separator": "n/a",
+      "source": "src/merkle.rs:46-50"
+    },
+    {
+      "algorithm": "SHA-256",
+      "constants": "none",
+      "encoding": "raw bytes -> lowercase hex",
+      "exercised": true,
+      "field_order": "n/a",
+      "fixture": "HD-008_policy_hash",
+      "id": "policy_hash",
+      "input": "raw policy file bytes",
+      "separator": "n/a",
+      "source": "src/policy.rs:188"
+    },
+    {
+      "algorithm": "SHA-256",
+      "constants": "none",
+      "encoding": "UTF-8 -> lowercase hex",
+      "exercised": true,
+      "field_order": "context, prompt, response",
+      "fixture": "HD-009_input_hash",
+      "id": "input_hash",
+      "input": "context + \" \" + prompt + \" \" + response",
+      "separator": "U+0020",
+      "source": "src/api/audit.rs:104-109"
+    },
+    {
+      "algorithm": "SHA-256",
+      "constants": "none",
+      "encoding": "UTF-8 -> lowercase hex",
+      "exercised": true,
+      "field_order": "n/a",
+      "fixture": "HD-010_shadow_hash",
+      "id": "shadow_hash",
+      "input": "shadow_normalize(combined input)",
+      "separator": "n/a",
+      "source": "src/api/audit.rs:108,110"
+    },
+    {
+      "algorithm": "SHA-256",
+      "constants": "none",
+      "encoding": "UTF-8 -> 32 raw bytes",
+      "exercised": true,
+      "field_order": "see segment_chain_hash",
+      "fixture": "HD-011_tsa_message_imprint",
+      "id": "tsa_message_imprint",
+      "input": "same preimage as segment_chain_hash",
+      "separator": "U+007C",
+      "source": "src/segment.rs:120-132"
+    },
+    {
+      "algorithm": "SHA-256",
+      "constants": "none",
+      "encoding": "raw bytes -> 32 raw bytes",
+      "exercised": false,
+      "field_order": "UNKNOWN — determined by caller",
+      "fixture": null,
+      "id": "rfc3161_request_digest",
+      "input": "caller-supplied preimage bytes",
+      "reason_not_exercised": "requires a live RFC 3161 TSA over the network",
+      "separator": "n/a",
+      "source": "src/rfc3161.rs:138"
+    },
+    {
+      "algorithm": "SHA-256",
+      "constants": "none",
+      "encoding": "raw bytes",
+      "exercised": false,
+      "field_order": "UNKNOWN",
+      "fixture": null,
+      "id": "tst_verify_digest_message_imprint",
+      "input": "TST-embedded bytes",
+      "reason_not_exercised": "reached only through private TST parsing paths; covered by tests/tst_verify.rs",
+      "separator": "n/a",
+      "source": "src/tst_verify.rs:657"
+    },
+    {
+      "algorithm": "SHA-256",
+      "constants": "none",
+      "encoding": "DER bytes",
+      "exercised": false,
+      "field_order": "UNKNOWN — DER ordering",
+      "fixture": null,
+      "id": "tst_verify_digest_signed_attrs",
+      "input": "CMS signed attributes",
+      "reason_not_exercised": "reached only through private CMS verification paths",
+      "separator": "n/a",
+      "source": "src/tst_verify.rs:839"
+    },
+    {
+      "algorithm": "SHA-256",
+      "constants": "none",
+      "encoding": "UTF-8 -> 32 raw bytes",
+      "exercised": false,
+      "field_order": "see segment_chain_hash",
+      "fixture": null,
+      "id": "aura_seal_cli_digest",
+      "input": "segment preimage string",
+      "reason_not_exercised": "lives in a binary target, not the library surface",
+      "separator": "U+007C",
+      "source": "src/bin/aura_seal.rs:500"
+    }
+  ],
+  "dq_boundary": "INFRA-001 does not resolve DQ-002 and does not establish any normative hash-domain relationship.",
+  "not_asserted": [
+    "No relationship is claimed between these constructions and APS-200 integrity_hash, event_payload_hash or previous_record_hash.",
+    "No construction here is asserted to be canonical or specification-conformant."
+  ],
+  "observed_implementation_dependencies": [
+    "entry_chain_hash digest -> hex-decoded to 32 bytes -> merkle_leaf_hash (src/segment.rs:135-148)",
+    "merkle root -> segment_chain_hash preimage (src/segment.rs:91-106)",
+    "segment_chain_hash preimage -> tsa_message_imprint (src/segment.rs:120-132)"
+  ],
+  "primitives": [
+    {
+      "id": "sha256_hex",
+      "note": "UTF-8 string -> lowercase hex",
+      "source": "src/crypto.rs:8-12"
+    },
+    {
+      "id": "sha256_bytes_hex",
+      "note": "raw bytes -> lowercase hex",
+      "source": "src/crypto.rs:16-20"
+    }
+  ],
+  "repository": "AuraIDToken/aura-guard-v1.3",
+  "status": "AS-IS OBSERVATION — not canonical, not normative"
+}
