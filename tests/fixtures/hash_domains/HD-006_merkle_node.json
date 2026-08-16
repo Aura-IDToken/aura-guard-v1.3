@@ -1,0 +1,11 @@
+{
+  "construction_id": "merkle_node_hash",
+  "fixture_id": "HD-006_merkle_node",
+  "input_bytes_hex": "0101962b1487de45a9d576221730d16b71a9ca4f415d0dc09f17c82924169d569930aba2b15f763876e973e07e7d72188891250bae86ae3d9ec56d48733dee335d",
+  "input_length": 65,
+  "input_utf8": null,
+  "not_canonical": "DQ-002 and DQ-006 unresolved; these bytes carry no specification standing.",
+  "sha256": "1874cd299c46a25f29b011c268dc6d4c73a9d70e601d68d3e1eee359a50ae6dc",
+  "source_ref": "src/merkle.rs:36-44 (node_hash, 0x01 prefix)",
+  "status": "AS-IS IMPLEMENTATION BYTES — OBSERVED PREIMAGE"
+}

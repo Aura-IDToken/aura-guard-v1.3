@@ -1,0 +1,11 @@
+{
+  "construction_id": "segment_genesis_hash",
+  "fixture_id": "HD-004_segment_genesis",
+  "input_bytes_hex": "415552412d47554152442d5345474d454e542d47454e455349532d7631",
+  "input_length": 29,
+  "input_utf8": "AURA-GUARD-SEGMENT-GENESIS-v1",
+  "not_canonical": "DQ-002 and DQ-006 unresolved; these bytes carry no specification standing.",
+  "sha256": "68856029989354a47760a65ea30238356db77c609f595c6192dcdc6c7c5a4097",
+  "source_ref": "src/segment.rs:46-50 (segment_genesis_hash)",
+  "status": "AS-IS IMPLEMENTATION BYTES — OBSERVED PREIMAGE"
+}

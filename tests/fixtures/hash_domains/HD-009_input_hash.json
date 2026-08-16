@@ -1,0 +1,11 @@
+{
+  "construction_id": "input_hash",
+  "fixture_id": "HD-009_input_hash",
+  "input_bytes_hex": "46696e616e636520426f74204361726420343131312d313131312d313131312d3131313120706c6561736520492063616e6e6f742070726f6365737320746861742e",
+  "input_length": 66,
+  "input_utf8": "Finance Bot Card 4111-1111-1111-1111 please I cannot process that.",
+  "not_canonical": "DQ-002 and DQ-006 unresolved; these bytes carry no specification standing.",
+  "sha256": "9d7f439b1df99eac800c2120ce307ab2f7d91e4bf1c6012d3d9ed7714c0cdaba",
+  "source_ref": "src/api/audit.rs:104-109 (space-joined context, prompt, response)",
+  "status": "AS-IS IMPLEMENTATION BYTES — OBSERVED PREIMAGE"
+}

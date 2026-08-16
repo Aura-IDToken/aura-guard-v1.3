@@ -1,0 +1,11 @@
+{
+  "construction_id": "merkle_empty_root",
+  "fixture_id": "HD-007_merkle_empty_root",
+  "input_bytes_hex": "",
+  "input_length": 0,
+  "input_utf8": "",
+  "not_canonical": "DQ-002 and DQ-006 unresolved; these bytes carry no specification standing.",
+  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "source_ref": "src/merkle.rs:46-50 (empty_root)",
+  "status": "AS-IS IMPLEMENTATION BYTES — OBSERVED PREIMAGE"
+}
