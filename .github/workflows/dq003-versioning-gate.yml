@@ -1,0 +1,47 @@
+name: DQ-003 Version Binding Gate
+
+on:
+  push:
+    branches:
+      - ck003/dq-003-versioning-conformance
+  pull_request:
+    branches:
+      - main
+      - ck003/dq-003-versioning-conformance
+
+permissions:
+  contents: read
+
+jobs:
+  ri-rs-version-conformance:
+    name: RI-RS version conformance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@1.86.0
+
+      - name: Run DQ-003 RI-RS conformance tests
+        run: cargo test --locked --test dq003_version_binding -- --nocapture
+
+      - name: Emit DQ-003 evidence
+        run: |
+          mkdir -p dq003-evidence
+          cat > dq003-evidence/ri-rs-verdict.txt <<'EOF'
+          DQ-003 RI-RS VERSION CONFORMANCE
+          protocol_version=1.0
+          schema_version=1.0.0
+          semantic_contract=protocol_version distinct from schema_version
+          implementation_version=not a protocol binding
+          unknown_versions=reject
+          canonicalization_order=version resolution precedes canonicalization
+          verdict=PASS
+          EOF
+
+      - name: Upload DQ-003 RI-RS evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: dq003-ri-rs-version-conformance
+          path: dq003-evidence/ri-rs-verdict.txt
