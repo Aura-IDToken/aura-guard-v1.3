@@ -1,0 +1,36 @@
+{
+  "fixture_id": "FIX-CK003-DQ002-RFC6962-2LEAF",
+  "fixture_version": "0.1.0",
+  "protocol_version": "1.0-DRAFT",
+  "status": "PROPOSED",
+  "description": "Two-leaf byte-level Merkle fixture for RI-PY and RI-RS cross-language conformance.",
+  "hash_domain": "RFC6962",
+  "inputs": {
+    "leaf_a_utf8": "a",
+    "leaf_b_utf8": "b",
+    "leaf_a_bytes_hex": "61",
+    "leaf_b_bytes_hex": "62"
+  },
+  "rules": {
+    "leaf_hash": "SHA-256(0x00 || raw_leaf_bytes)",
+    "node_hash": "SHA-256(0x01 || left_hash_bytes || right_hash_bytes)",
+    "odd_leaf_handling": "RFC6962 recursive promotion; no duplication"
+  },
+  "expected": {
+    "leaf_a_hash_hex": "022a6979e6dab7aa5ae4c3e5e45f7e977112a7e63593820dbec1ec738a24f93c",
+    "leaf_b_hash_hex": "57eb35615d47f34ec714cacdf5fd74608a5e8e102724e80b24b287c0c27b6a31",
+    "root_hash_hex": "b137985ff484fb600db93107c77b0365c80d78f5b429ded0fd97361d077999eb"
+  },
+  "negative_expectations": {
+    "plain_sha256_utf8_leaf_domain": "MUST NOT be accepted as equivalent",
+    "hex_string_concatenation_node_domain": "MUST NOT be accepted as equivalent",
+    "duplicate_last_node_for_odd_tree": "MUST NOT be used"
+  },
+  "related_invariants": [
+    "INV-003",
+    "INV-006",
+    "INV-011",
+    "INV-014"
+  ],
+  "evidence_note": "Expected values are independently computed SHA-256 digests over the byte domain stated above."
+}
