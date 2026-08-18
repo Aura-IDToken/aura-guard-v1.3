@@ -1,0 +1,35 @@
+# RI-RS CANONICAL-001 conformance package.
+#
+# Deliberately a *separate* package with its own lockfile, outside the
+# `aura-guard` production crate. The production dependency graph, its
+# Cargo.toml and its Cargo.lock are not touched by CANONICAL-001 conformance
+# work, so no production runtime, hashing or Merkle behaviour can change as a
+# side effect of adding a JCS engine.
+#
+# Empty `[workspace]` table: this package is its own workspace root and is not
+# absorbed into anything above it.
+[workspace]
+
+[package]
+name = "aura-guard-conformance"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "CANONICAL-001 conformance boundary for RI-RS (aura-guard). Not part of the production crate."
+build = "build.rs"
+
+[lib]
+name = "aura_guard_conformance"
+path = "canonical/jcs.rs"
+
+[[test]]
+name = "canonical_001"
+path = "canonical/test/canonical_001.rs"
+
+[dependencies]
+# Frozen protocol contract: RI-RS JCS engine == serde_json_canonicalizer 0.3.2.
+serde_json_canonicalizer = "=0.3.2"
+serde = "1"
+serde_json = "1"
+sha2 = "0.10"
+hex = "0.4"
