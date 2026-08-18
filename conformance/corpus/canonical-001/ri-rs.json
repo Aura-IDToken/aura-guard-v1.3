@@ -1,0 +1,27 @@
+{
+  "canonical_bytes_hex": "7b226576656e745f74797065223a2241554449545f5245434f5244222c227061796c6f6164223a7b2276616c7565223a34327d2c2270726f746f636f6c5f76657273696f6e223a22312e30222c22736368656d615f76657273696f6e223a22312e30227d",
+  "canonical_bytes_len": 100,
+  "canonicalization": "RFC8785",
+  "commit": "4e9e2284ccdac6d2f40e038e33b4eaeec847aaa2",
+  "engine": "serde_json_canonicalizer",
+  "engine_version": "0.3.2",
+  "fixture": "CANONICAL-001",
+  "implementation": "RI-RS",
+  "leaf_domain": "0x00",
+  "leaf_sha256": "ce6b36733d97699230f37d80a14e14104c19d2e787526a6fc3aaae6b6648c039",
+  "provenance": {
+    "adapter_path": "conformance/canonical/jcs.rs",
+    "adapter_sha256": "0dae4ef696f06a4d3248ca85284fd7db280ef3c897a96cf898ef076cd4e846f2",
+    "execution_command": "cargo test --locked --test canonical_001",
+    "input_path": "conformance/corpus/canonical-001/input.json",
+    "input_sha256": "649bb748464ce78fe1a1d7104689d2dee736fb80777db6569592bc0d3d039261",
+    "lockfile_path": "conformance/Cargo.lock",
+    "lockfile_sha256": "3ff49a0f01aafa9925dc2904927f0810a2628d24ff944b200c7858c06a534638",
+    "os": "linux",
+    "rust_version": "rustc 1.94.1 (e408947bf 2026-03-25)",
+    "target": "x86_64"
+  },
+  "repository": "Aura-IDToken/aura-guard-v1.3",
+  "sha256": "b6c3660ce6dee498b37443a92bf87c5efead6fe863fcf19197c0baeda139a4e6",
+  "worktree_clean": true
+}
