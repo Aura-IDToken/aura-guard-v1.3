@@ -114,6 +114,18 @@ tempfile = "3"
 serde_json = "1"
 proptest = "1"
 
+# RFC 8785 (JCS) canonical serialization — conformance harness only.
+# Pinned exactly; used by `conformance/canonical` (CANONICAL-001).
+# NOT a production dependency: the runtime hash/Merkle path is untouched.
+serde_json_canonicalizer = "=0.3.2"
+
+# CANONICAL-001 conformance harness (RFC 8785 JCS + RFC 6962 leaf domain).
+# Lives outside `tests/` so the conformance surface stays separated from the
+# production regression suite.
+[[test]]
+name = "canonical_001"
+path = "conformance/canonical/canonical_001.rs"
+
 [lints.rust]
 unsafe_code = "forbid"
 missing_docs = "warn"
