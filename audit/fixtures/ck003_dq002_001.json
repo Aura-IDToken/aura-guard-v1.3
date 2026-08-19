@@ -1,0 +1,13 @@
+{
+  "fixture_id": "CK003-DQ002-001",
+  "hash_domain": "RI-RS",
+  "leaf": {
+    "canonical_bytes_utf8": "agent_id=MACHINE_ACCOUNT_001|ari=95000|drift=5000|ts=2026-01-01T00:00:00Z",
+    "expected_sha256_hex": "f7acc9aaf8937e3bdc02a2d39ac661a742343abcd3d4a76807a2f1585a158e4b"
+  },
+  "node": {
+    "left_sha256_hex": "f7acc9aaf8937e3bdc02a2d39ac661a742343abcd3d4a76807a2f1585a158e4b",
+    "right_sha256_hex": "f7acc9aaf8937e3bdc02a2d39ac661a742343abcd3d4a76807a2f1585a158e4b",
+    "expected_sha256_hex": "1b3ff765c9dc0659880dff1f051ee4c22b9476a6275dcf3b2437f9e1feec9dd6"
+  }
+}

@@ -1,0 +1,33 @@
+name: CK-003 DQ-002 Hash Domain
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches:
+      - 'ck003/**'
+
+permissions:
+  contents: read
+
+jobs:
+  ri-rs-conformance:
+    name: RI-RS conformance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.86.0
+      - uses: Swatinem/rust-cache@v2
+      - name: Run CK-003 RI-RS conformance test
+        run: cargo test --locked --test ck003_dq002_ri_rs_conformance -- --nocapture
+
+  hash-domain-gate:
+    name: DQ-002 gate
+    runs-on: ubuntu-latest
+    needs: [ri-rs-conformance]
+    steps:
+      - name: Gate passed
+        run: |
+          echo "DQ-002 RI-RS hash-domain conformance: PASS"
+          echo "Canonical model: SHA-256(0x00 || bytes) for leaves"
+          echo "Canonical model: SHA-256(0x01 || left[32] || right[32]) for nodes"
