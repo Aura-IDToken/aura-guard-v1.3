@@ -126,6 +126,14 @@ serde_json_canonicalizer = "=0.3.2"
 name = "canonical_001"
 path = "conformance/canonical/canonical_001.rs"
 
+# CANONICAL-002 conformance harness — the JCS-*discriminating* fixture.
+# Same conformance surface, same dev-dependency; no production dependency and
+# no lockfile change. Registering a test target does not affect the library or
+# any binary.
+[[test]]
+name = "canonical_002"
+path = "conformance/canonical/canonical_002.rs"
+
 [lints.rust]
 unsafe_code = "forbid"
 missing_docs = "warn"

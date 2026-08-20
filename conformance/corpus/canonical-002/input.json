@@ -1,0 +1,52 @@
+{
+  "\uffff": "key_u_ffff",
+  "strings": {
+    "escapes": "quote\" backslash\\ newline\n tab\t ctrl\u0001 solidus/ end",
+    "unicode": "eacute \u00e9 euro \u20ac emoji \ud83d\ude00 bmp \ufb00"
+  },
+  "z": "key_ascii_z",
+  "numbers": {
+    "one_point_zero": 1.0,
+    "negative_zero": -0.0,
+    "small_exponent": 1e-07,
+    "exponent_boundary": 1e-06,
+    "large_exponent": 1e+21,
+    "plain_integer": 42,
+    "negative_fraction": -1.5
+  },
+  "\ud83d\ude00": "key_u_1f600",
+  "array_order": [
+    3,
+    1,
+    2,
+    {
+      "y": 1,
+      "x": 2
+    },
+    "c",
+    "a",
+    "b"
+  ],
+  "\ufb00": "key_u_fb00",
+  "nested": {
+    "zebra": {
+      "inner_z": 1,
+      "inner_a": [
+        9,
+        8,
+        7
+      ]
+    },
+    "alpha": {
+      "\uffff": true,
+      "\ud800\udc00": false,
+      "m": null
+    }
+  },
+  "\ud800\udc00": "key_u_10000",
+  "\u00e9": "key_u_00e9",
+  "\u20ac": "key_u_20ac",
+  "protocol_version": "1.0",
+  "schema_version": "1.0",
+  "event_type": "AUDIT_RECORD"
+}
