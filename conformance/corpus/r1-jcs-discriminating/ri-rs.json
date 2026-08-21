@@ -1,0 +1,33 @@
+{
+  "canonical_bytes_hex": "7b2261223a312c22f09f9880223a31652d372c22efbcba223a307d",
+  "canonical_bytes_len": 27,
+  "canonicalization": "RFC8785",
+  "commit": "55015da9d53962049872122f7e6da1c5017f3d75",
+  "discrimination": {
+    "conventional_bytes_hex": "7b2261223a312e302c22efbcba223a2d302e302c22f09f9880223a31652d377d",
+    "conventional_bytes_len": 32,
+    "conventional_serializer": "serde_json::to_vec (BTreeMap key order, serde_json float formatting)",
+    "differs_from_jcs": true,
+    "note": "Evidence only. The conventional serialization is never hashed, never becomes a protocol value, and never replaces RFC 8785."
+  },
+  "engine": "serde_json_canonicalizer",
+  "engine_version": "0.3.2",
+  "fixture": "R1-JCS-DISCRIMINATING",
+  "implementation": "RI-RS",
+  "leaf_domain": "0x00",
+  "leaf_sha256": "fb988d990e39fa4f2f35f9158aaa9bac88aad84add3aaf47fb27426eb450656d",
+  "provenance": {
+    "adapter_path": "conformance/canonical/jcs.rs",
+    "adapter_sha256": "cab24c297a4a989e7423e6f0f0c85bbe05ed508dc67fe59a64cdef194a2a9f12",
+    "execution_command": "cargo test --locked --test r1_jcs_discriminating",
+    "input_path": "conformance/corpus/r1-jcs-discriminating/input.json",
+    "input_sha256": "64b737306d2421092cd9f28a5deb525437100c788ab7c39891aaf6b61cd472ca",
+    "lockfile_path": "Cargo.lock",
+    "os": "linux",
+    "rust_version": "rustc 1.94.1 (e408947bf 2026-03-25)",
+    "target": "x86_64"
+  },
+  "repository": "Aura-IDToken/aura-guard-v1.3",
+  "sha256": "a8c01577f4cc4ef73b258cbe66da0103b009fdd88be480c0b811ff2c1ad0946c",
+  "worktree_clean": true
+}
