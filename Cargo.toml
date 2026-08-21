@@ -126,6 +126,12 @@ serde_json_canonicalizer = "=0.3.2"
 name = "canonical_001"
 path = "conformance/canonical/canonical_001.rs"
 
+# R1-JCS-DISCRIMINATING conformance harness. Same boundary as CANONICAL-001,
+# on a fixture for which a conventional serializer and RFC 8785 disagree.
+[[test]]
+name = "r1_jcs_discriminating"
+path = "conformance/canonical/r1_jcs_discriminating.rs"
+
 [lints.rust]
 unsafe_code = "forbid"
 missing_docs = "warn"
