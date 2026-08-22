@@ -61,7 +61,7 @@ whitespace between JSON tokens.
 | Exact UTF-8 bytes | §3.2.4 | TESTED |
 | Non-finite numbers | §3.2.2.3 / JSON input boundary | TESTED |
 | Duplicate-property rejection | §3.1 I-JSON precondition | **BOUNDARY — upstream parser responsibility** |
-| Lone-surrogate rejection | §3.2.2.2 | **NOT YET EXECUTED** |
+| Lone-surrogate rejection | §3.2.2.2 | TESTED at JSON input boundary |
 | ENT-007 representative structures | separate DQ-003 fixture work | **DEFERRED** |
 
 ## Important boundary: duplicate properties
