@@ -131,6 +131,12 @@ path = "conformance/canonical/canonical_001.rs"
 name = "c1_full_domain_jcs"
 path = "conformance/canonical/c1_full_domain_jcs.rs"
 
+# C2-1 Event Payload input boundary evidence. Conformance-only; test-only
+# validator, no production code, no new dependency.
+[[test]]
+name = "c2_1_event_payload_input"
+path = "conformance/canonical/c2_1_event_payload_input.rs"
+
 [lints.rust]
 unsafe_code = "forbid"
 missing_docs = "warn"
