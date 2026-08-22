@@ -168,3 +168,10 @@ fn c1_boundary_nonfinite_numbers_are_not_json_values() {
     assert!(serde_json::from_str::<Value>(r#"{"n":Infinity}"#).is_err());
     assert!(serde_json::from_str::<Value>(r#"{"n":-Infinity}"#).is_err());
 }
+
+#[test]
+fn c1_boundary_lone_surrogate_is_rejected_before_canonicalization() {
+    // RFC 8785 §3.2.2.2 requires lone surrogate data to terminate with an
+    // error because it is not valid Unicode string data.
+    assert!(serde_json::from_str::<Value>(r#"{"text":"\uDEAD"}"#).is_err());
+}
