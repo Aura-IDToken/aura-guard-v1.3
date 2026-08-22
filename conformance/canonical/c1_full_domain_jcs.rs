@@ -34,13 +34,16 @@ fn c1_rfc_section_3_2_2_primitive_and_string_sample() {
     }
     "#;
 
-    let expected = concat!(
-        "{\"literals\":[null,true,false],\"numbers\":[333333333.3333333,",
-        "1e+30,4.5,0.002,1e-27],\"string\":\"€$\\u000f\\nA'B",
-        "\\\"\\\\\\\\\\\"/\"}"
-    );
+    // RFC 8785 §3.2.4, canonical UTF-8 byte sequence.
+    let expected = hex::decode(
+        "7b226c69746572616c73223a5b6e756c6c2c747275652c66616c73655d2c22\
+         6e756d62657273223a5b3333333333333333332e333333333333332c31652b\
+         33302c342e352c302e3030322c31652d32375d2c22737472696e67223a22e2\
+         82ac245c75303030665c6e4127425c225c5c5c5c5c222f227d",
+    )
+    .expect("RFC hexadecimal vector must decode");
 
-    assert_eq!(canonical(input), expected.as_bytes());
+    assert_eq!(canonical(input), expected);
 }
 
 #[test]
@@ -57,9 +60,12 @@ fn c1_rfc_utf16_property_sorting_sample() {
     }
     "#;
 
+    // RFC 8785 §3.2.3 ordering is UTF-16-code-unit based; serialization then
+    // emits non-control Unicode characters as their UTF-8 code points.
     let expected = concat!(
         "{\"\\r\":\"Carriage Return\",\"1\":\"One\",",
-        "\"\\u0080\":\"Control\",\"\\u00f6\":\"Latin Small Letter O With Diaeresis\",",
+        "\"", "\u{0080}", "\":\"Control\",",
+        "\"", "\u{00f6}", "\":\"Latin Small Letter O With Diaeresis\",",
         "\"€\":\"Euro Sign\",\"😀\":\"Emoji: Grinning Face\",",
         "\"דּ\":\"Hebrew Letter Dalet With Dagesh\"}"
     );
