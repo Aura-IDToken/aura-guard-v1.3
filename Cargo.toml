@@ -49,6 +49,11 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"
 
+# RFC 8785 (JCS) canonical serialization.
+# Promoted from [dev-dependencies] to production by the C2-1 promotion gate:
+# `src/canonical.rs` calls it directly. Version pin is unchanged (=0.3.2, MIT).
+serde_json_canonicalizer = "=0.3.2"
+
 # Crypto
 sha2 = "0.10"
 ed25519-dalek = { version = "2", features = ["rand_core", "pem", "pkcs8"] }
@@ -113,11 +118,6 @@ mime = "0.3"
 tempfile = "3"
 serde_json = "1"
 proptest = "1"
-
-# RFC 8785 (JCS) canonical serialization — conformance harness only.
-# Pinned exactly; used by `conformance/canonical` (CANONICAL-001/C1).
-# NOT a production dependency: the runtime hash/Merkle path is untouched.
-serde_json_canonicalizer = "=0.3.2"
 
 # CANONICAL-001 conformance harness (RFC 8785 JCS + RFC 6962 leaf domain).
 # Lives outside `tests/` so the conformance surface stays separated from the

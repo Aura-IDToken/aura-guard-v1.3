@@ -3,13 +3,21 @@
 **Gate:** C2-1, following C1 = PASS and C2 = PROMOTION BLOCKED
 **Repository:** `Aura-IDToken/aura-guard-v1.3`
 **Verdict:** **C2-1 = PASS** — 17/17, exit code 0 (§J)
-**Consequence:** input-boundary evidence is now sufficient for Custodian review of JCS production promotion. **Promotion itself remains a separate Custodian action and has not been taken.**
+**Consequence:** input-boundary evidence is now sufficient for Custodian review of JCS production promotion.
+
+> **SUPERSEDED IN PART — promotion has since been taken.** The Custodian authorized the minimal
+> production promotion described in §K.2 and §L. The validator now lives in
+> `aura_guard::event_payload`, the canonicalizer in `aura_guard::canonical`, and
+> `serde_json_canonicalizer =0.3.2` has moved to `[dependencies]`. See
+> **`C2-1-PRODUCTION-PROMOTION.md`** for the execution record. §K.1-K.2 below
+> ("the validator is test-only") described the state *before* that promotion and are
+> retained as the historical record. §K.3-K.6 remain open. DQ-003 remains OPEN.
 
 | Gate | State |
 |---|---|
 | C1 — JCS capability | **VERIFIED** |
-| C2 — input boundary | **NOT YET CLOSED** in production (evidence now exists; `src/` unchanged — §K) |
-| Production JCS promotion | **BLOCKED** until the Custodian acts on §L |
+| C2 — input boundary | **CLOSED** in production by the promotion gate (`aura_guard::event_payload`) |
+| Production JCS promotion | **DONE** — see `C2-1-PRODUCTION-PROMOTION.md` |
 | ENT-007 | **NOT IMPLEMENTED** |
 | DQ-003 | **OPEN** |
 

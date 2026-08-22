@@ -9,11 +9,13 @@
 #![warn(missing_docs)]
 
 pub mod auth;
+pub mod canonical;
 pub mod chain;
 pub mod config;
 pub mod crypto;
 pub mod engine;
 pub mod error;
+pub mod event_payload;
 pub mod log_writer;
 pub mod merkle;
 pub mod metrics;
