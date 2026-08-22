@@ -115,7 +115,7 @@ serde_json = "1"
 proptest = "1"
 
 # RFC 8785 (JCS) canonical serialization — conformance harness only.
-# Pinned exactly; used by `conformance/canonical` (CANONICAL-001).
+# Pinned exactly; used by `conformance/canonical` (CANONICAL-001/C1).
 # NOT a production dependency: the runtime hash/Merkle path is untouched.
 serde_json_canonicalizer = "=0.3.2"
 
@@ -125,6 +125,11 @@ serde_json_canonicalizer = "=0.3.2"
 [[test]]
 name = "canonical_001"
 path = "conformance/canonical/canonical_001.rs"
+
+# C1 full-domain RFC 8785 verification. Conformance-only; no production code.
+[[test]]
+name = "c1_full_domain_jcs"
+path = "conformance/canonical/c1_full_domain_jcs.rs"
 
 [lints.rust]
 unsafe_code = "forbid"
