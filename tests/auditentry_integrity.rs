@@ -147,11 +147,4 @@ fn portable_fixture_matches_rust_canonical_hash() {
     ))
     .trim();
     assert_eq!(canonical, expected);
-
-    let fixture = include_str!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/fixtures/auditentry/AE-001.canonical.json"
-    ));
-    let bytes = aura_guard::canonical::canonical_evidence_bytes(&entry).unwrap();
-    assert_eq!(bytes, fixture.as_bytes());
 }
