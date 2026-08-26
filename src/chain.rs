@@ -43,7 +43,6 @@ pub fn chain_preimage(
 }
 
 /// Compute the legacy nine-field chain hash used by observational D3 tooling.
-///
 /// Production code must use [`compute_chain_hash_for_entry`].
 #[must_use]
 #[allow(clippy::too_many_arguments)]
@@ -83,9 +82,13 @@ pub fn compute_chain_hash_for_entry(entry: &AuditEntry) -> Result<String> {
 }
 
 /// Recompute the production chain digest for an existing entry.
+///
+/// This function remains total for existing replay callers. A malformed
+/// evidence value (for example an invalid `confidence`) yields an impossible
+/// empty digest, which causes `verify_chain` to reject the entry as tampered.
 #[must_use]
-pub fn recompute_for_entry(entry: &AuditEntry) -> Result<String> {
-    compute_chain_hash_for_entry(entry)
+pub fn recompute_for_entry(entry: &AuditEntry) -> String {
+    compute_chain_hash_for_entry(entry).unwrap_or_default()
 }
 
 /// Walk the chain and fail on the first broken link.
@@ -102,7 +105,7 @@ pub fn verify_chain(entries: &[AuditEntry]) -> Result<String> {
                 actual: entry.prev_hash.clone(),
             });
         }
-        let recomputed = recompute_for_entry(entry)?;
+        let recomputed = recompute_for_entry(entry);
         if recomputed != entry.chain_hash {
             return Err(AuraError::ChainBreak {
                 index: i,
@@ -147,7 +150,7 @@ mod tests {
 
     fn sealed_entry(seq: u64, prev: &str, decision: &str) -> AuditEntry {
         let mut e = entry(seq, prev, decision);
-        e.chain_hash = recompute_for_entry(&e).expect("valid entry canonicalizes");
+        e.chain_hash = recompute_for_entry(&e);
         e
     }
 
@@ -183,8 +186,8 @@ mod tests {
         let mut e = base.clone(); e.violations[0].validator = None; cases.push(e);
 
         for mut mutated in cases {
-            assert!(verify_chain(&[mutated.clone()]).is_err());
-            mutated.chain_hash = recompute_for_entry(&mutated).expect("mutation is still valid evidence");
+            assert!(verify_chain(std::slice::from_ref(&mutated)).is_err());
+            mutated.chain_hash = recompute_for_entry(&mutated);
             assert_ne!(mutated.chain_hash, base.chain_hash);
         }
     }
@@ -196,8 +199,8 @@ mod tests {
         a.context = "value1|value2".into();
         b.context = "value1".into();
         b.input_hash = "value2|hash".into();
-        let ha = recompute_for_entry(&a).unwrap();
-        let hb = recompute_for_entry(&b).unwrap();
+        let ha = recompute_for_entry(&a);
+        let hb = recompute_for_entry(&b);
         assert_ne!(ha, hb);
     }
 
@@ -205,17 +208,15 @@ mod tests {
     fn violation_order_is_hash_semantic() {
         let mut a = sealed_entry(0, &genesis_hash(), "ALLOW");
         let mut b = a.clone();
-        b.violations.insert(
-            0,
-            Violation {
-                rule: "R-002".into(),
-                action: "deny".into(),
-                confidence: 0.5,
-                validator: None,
-            },
-        );
-        a.violations.push(b.violations[0].clone());
-        assert_ne!(recompute_for_entry(&a).unwrap(), recompute_for_entry(&b).unwrap());
+        let extra = Violation {
+            rule: "R-002".into(),
+            action: "deny".into(),
+            confidence: 0.5,
+            validator: None,
+        };
+        a.violations.push(extra.clone());
+        b.violations.insert(0, extra);
+        assert_ne!(recompute_for_entry(&a), recompute_for_entry(&b));
     }
 
     #[test]
