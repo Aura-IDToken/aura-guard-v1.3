@@ -9,6 +9,7 @@
 #![warn(missing_docs)]
 
 pub mod auth;
+pub mod canonical;
 pub mod chain;
 pub mod config;
 pub mod crypto;
