@@ -101,13 +101,17 @@ fn confidence_to_fixed_point(value: f32) -> Result<u64, CanonicalError> {
         numerator << (power as u32)
     } else {
         let shift = (-power) as u32;
-        let divisor = 1u64 << shift;
-        let quotient = numerator / divisor;
-        let remainder = numerator % divisor;
-        if remainder.saturating_mul(2) >= divisor {
-            quotient + 1
+        if shift >= 64 {
+            0
         } else {
-            quotient
+            let divisor = 1u64 << shift;
+            let quotient = numerator / divisor;
+            let remainder = numerator % divisor;
+            if remainder.saturating_mul(2) >= divisor {
+                quotient + 1
+            } else {
+                quotient
+            }
         }
     };
 
