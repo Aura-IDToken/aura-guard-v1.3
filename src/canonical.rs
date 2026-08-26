@@ -86,10 +86,8 @@ fn confidence_to_fixed_point(value: f32) -> Result<u64, CanonicalError> {
     }
 
     let (mantissa, power) = if exponent == 0 {
-        // Subnormal: value = fraction * 2^-149.
         (fraction as u64, -149i32)
     } else {
-        // Normal: value = (2^23 + fraction) * 2^(exponent-127-23).
         (
             ((1u32 << 23) | fraction) as u64,
             exponent as i32 - 127 - 23,
@@ -222,5 +220,22 @@ mod tests {
             },
         );
         assert_ne!(canonical_evidence_bytes(&a).unwrap(), canonical_evidence_bytes(&b).unwrap());
+    }
+
+    #[test]
+    fn portable_fixture_matches_exact_canonical_bytes() {
+        let mut fixture = entry("Finance Bot");
+        fixture.seq = 0;
+        fixture.audit_id = "audit-00000000".into();
+        fixture.context = "Finance Bot".into();
+        fixture.input_hash = "input-hash".into();
+        fixture.shadow_hash = "shadow-hash".into();
+        fixture.prev_hash = crate::crypto::genesis_hash();
+        fixture.chain_hash.clear();
+        let expected = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/auditentry/AE-001.canonical.json"
+        ));
+        assert_eq!(canonical_evidence_bytes(&fixture).unwrap(), expected.as_bytes());
     }
 }
