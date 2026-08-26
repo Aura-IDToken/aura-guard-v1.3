@@ -57,8 +57,10 @@ fn every_evidence_field_is_integrity_bound() {
     for (name, mutate) in mutations.drain(..) {
         let mut candidate = clean.clone();
         mutate(&mut candidate);
-        assert!(verify_chain(std::slice::from_ref(&candidate)).is_err(),
-            "mutation {name} must invalidate the original chain_hash");
+        assert!(
+            verify_chain(std::slice::from_ref(&candidate)).is_err(),
+            "mutation {name} must invalidate the original chain_hash"
+        );
     }
 }
 
@@ -133,4 +135,23 @@ fn invalid_confidence_cannot_produce_valid_evidence_hash() {
         entry.violations[0].confidence = value;
         assert!(compute_chain_hash_for_entry(&entry).is_err());
     }
+}
+
+#[test]
+fn portable_fixture_matches_rust_canonical_hash() {
+    let entry = base_entry();
+    let canonical = compute_chain_hash_for_entry(&entry).unwrap();
+    let expected = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/auditentry/AE-001.sha256"
+    ))
+    .trim();
+    assert_eq!(canonical, expected);
+
+    let fixture = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/auditentry/AE-001.canonical.json"
+    ));
+    let bytes = aura_guard::canonical::canonical_evidence_bytes(&entry).unwrap();
+    assert_eq!(bytes, fixture.as_bytes());
 }
