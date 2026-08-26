@@ -1,34 +1,19 @@
 //! Hash-chain construction and verification.
 //!
-//! Each audit entry computes:
-//!
-//! ```text
-//! chain_hash = SHA-256( prev_hash || decision || policy_set || policy_hash
-//!                      || context || input_hash || shadow_hash
-//!                      || seq || timestamp )
-//! ```
-//!
-//! Field separator is `|` so the input is unambiguous. Tampering with any
-//! field — *or with the order of records* — breaks the chain.
+//! Production `AuditEntry` hashing uses RFC 8785 JCS over every
+//! evidence-bearing field except `chain_hash`. The legacy pipe-joined helpers
+//! remain available for D3 observational tooling only.
 
+use crate::canonical::canonical_evidence_bytes;
 use crate::crypto::{genesis_hash, sha256_hex};
 use crate::models::AuditEntry;
 use crate::{AuraError, Result};
 
-/// Field separator used inside the chain digest. Must never overlap with hex,
-/// base64 or any timestamp character.
+/// Legacy observational field separator used by the D3 chain export helpers.
 const SEP: &str = "|";
 
-/// Build the canonical preimage string that seeds `chain_hash`.
-///
-/// This returns the exact byte sequence that [`compute_chain_hash`] hashes.
-/// It is exposed so external verifiers and evidence tooling can observe the
-/// preimage directly instead of reconstructing it, mirroring the existing
-/// [`crate::segment::SegmentManifest::segment_chain_preimage`] accessor at the
-/// segment layer.
-///
-/// Observational only: the field set, field order, separator and encoding are
-/// unchanged from the original inline construction.
+/// Build the legacy nine-field chain preimage used by D3 observational
+/// fixtures. This function is not the production `AuditEntry` hash domain.
 #[must_use]
 #[allow(clippy::too_many_arguments)]
 pub fn chain_preimage(
@@ -56,7 +41,8 @@ pub fn chain_preimage(
     .join(SEP)
 }
 
-/// Compute `chain_hash` for an in-progress entry.
+/// Compute the legacy nine-field chain hash used by observational D3 tooling.
+/// Production code must use [`compute_chain_hash_for_entry`].
 #[must_use]
 #[allow(clippy::too_many_arguments)]
 pub fn compute_chain_hash(
@@ -70,7 +56,7 @@ pub fn compute_chain_hash(
     seq: u64,
     timestamp: &str,
 ) -> String {
-    let canonical = chain_preimage(
+    sha256_hex(&chain_preimage(
         prev_hash,
         decision,
         policy_set,
@@ -80,30 +66,30 @@ pub fn compute_chain_hash(
         shadow_hash,
         seq,
         timestamp,
-    );
-    sha256_hex(&canonical)
+    ))
 }
 
-/// Recompute the chain digest for an existing entry (used by the replay CLI).
+/// Compute the production chain hash for a complete `AuditEntry`.
+///
+/// `chain_hash` is excluded from the canonical byte domain. All other
+/// evidence-bearing fields, including `schema`, `audit_id`, `request_id`, and
+/// `violations`, are canonicalized by RFC 8785 JCS.
+pub fn compute_chain_hash_for_entry(entry: &AuditEntry) -> Result<String> {
+    let bytes = canonical_evidence_bytes(entry)
+        .map_err(|e| AuraError::Config(format!("canonical AuditEntry serialization failed: {e}")))?;
+    Ok(sha256_hex(&bytes))
+}
+
+/// Recompute the production chain digest for an existing entry.
+///
+/// This remains total for replay callers. A malformed evidence value yields
+/// an empty digest, which causes `verify_chain` to reject the entry.
 #[must_use]
 pub fn recompute_for_entry(entry: &AuditEntry) -> String {
-    compute_chain_hash(
-        &entry.prev_hash,
-        &entry.decision,
-        &entry.policy_set,
-        &entry.policy_hash,
-        &entry.context,
-        &entry.input_hash,
-        &entry.shadow_hash,
-        entry.seq,
-        &entry.timestamp,
-    )
+    compute_chain_hash_for_entry(entry).unwrap_or_default()
 }
 
 /// Walk the chain and fail on the first broken link.
-///
-/// On success returns the final `chain_hash` so callers can also pin
-/// "head-of-chain" digests in offline registries.
 pub fn verify_chain(entries: &[AuditEntry]) -> Result<String> {
     let mut expected_prev = genesis_hash();
     for (i, entry) in entries.iter().enumerate() {
@@ -131,13 +117,14 @@ pub fn verify_chain(entries: &[AuditEntry]) -> Result<String> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use crate::models::Violation;
 
     fn entry(seq: u64, prev: &str, decision: &str) -> AuditEntry {
         let mut e = AuditEntry {
             schema: "aura-guard.audit.v1".into(),
             seq,
-            audit_id: format!("{:08}", seq),
-            request_id: None,
+            audit_id: format!("audit-{seq:08}"),
+            request_id: Some(format!("req-{seq}")),
             timestamp: "2026-05-12T00:00:00+00:00".into(),
             decision: decision.into(),
             policy_set: "finance-v1".into(),
@@ -145,7 +132,12 @@ mod tests {
             context: "ctx".into(),
             input_hash: format!("input-{seq}"),
             shadow_hash: format!("shadow-{seq}"),
-            violations: vec![],
+            violations: vec![Violation {
+                rule: "R-001".into(),
+                action: "review".into(),
+                confidence: 0.95,
+                validator: Some("validator".into()),
+            }],
             prev_hash: prev.into(),
             chain_hash: String::new(),
         };
@@ -166,7 +158,6 @@ mod tests {
     fn verify_chain_detects_field_tamper() {
         let e0 = entry(0, &genesis_hash(), "DENY");
         let mut e1 = entry(1, &e0.chain_hash, "DENY");
-        // Tamper with the decision but leave chain_hash intact.
         e1.decision = "ALLOW".into();
         let err = verify_chain(&[e0, e1]).expect_err("must detect tamper");
         match err {
@@ -179,7 +170,6 @@ mod tests {
     fn verify_chain_detects_prev_hash_break() {
         let e0 = entry(0, &genesis_hash(), "DENY");
         let mut e1 = entry(1, &e0.chain_hash, "ALLOW");
-        // Manually corrupt the link.
         e1.prev_hash = "0".repeat(64);
         e1.chain_hash = recompute_for_entry(&e1);
         let err = verify_chain(&[e0, e1]).expect_err("must detect prev_hash break");
@@ -189,7 +179,6 @@ mod tests {
         }
     }
 
-    // Additional chain tests
     #[test]
     fn verify_chain_empty_chain_succeeds() {
         let head = verify_chain(&[]).expect("empty chain is valid");
@@ -225,7 +214,6 @@ mod tests {
             prev = e.chain_hash.clone();
             entries.push(e);
         }
-        // Tamper with entry 5
         entries[5].decision = "DENY".into();
         let err = verify_chain(&entries).expect_err("must detect mid-chain tamper");
         match err {
@@ -239,7 +227,6 @@ mod tests {
         let e0 = entry(0, &genesis_hash(), "ALLOW");
         let e1 = entry(1, &e0.chain_hash, "DENY");
         let e2 = entry(2, &e1.chain_hash, "REVIEW");
-        // Swap e1 and e2
         let err = verify_chain(&[e0, e2, e1]).expect_err("must detect reorder");
         match err {
             AuraError::ChainBreak { index, .. } => assert_eq!(index, 1),
@@ -252,7 +239,6 @@ mod tests {
         let e0 = entry(0, &genesis_hash(), "ALLOW");
         let e1 = entry(1, &e0.chain_hash, "DENY");
         let e2 = entry(2, &e1.chain_hash, "REVIEW");
-        // Skip e1
         let err = verify_chain(&[e0, e2]).expect_err("must detect skip");
         match err {
             AuraError::ChainBreak { index, .. } => assert_eq!(index, 1),
@@ -263,7 +249,6 @@ mod tests {
     #[test]
     fn verify_chain_detects_duplicate_entry() {
         let e0 = entry(0, &genesis_hash(), "ALLOW");
-        // Duplicate e0
         let err = verify_chain(&[e0.clone(), e0.clone()]).expect_err("must detect duplicate");
         match err {
             AuraError::ChainBreak { index, .. } => assert_eq!(index, 1),
@@ -285,159 +270,43 @@ mod tests {
 
     #[test]
     fn compute_chain_hash_deterministic() {
-        let h1 = compute_chain_hash(
-            "prev",
-            "DENY",
-            "finance-v1",
-            "policy_hash",
-            "ctx",
-            "input_hash",
-            "shadow_hash",
-            42,
-            "2026-01-01T00:00:00Z",
-        );
-        let h2 = compute_chain_hash(
-            "prev",
-            "DENY",
-            "finance-v1",
-            "policy_hash",
-            "ctx",
-            "input_hash",
-            "shadow_hash",
-            42,
-            "2026-01-01T00:00:00Z",
-        );
+        let h1 = compute_chain_hash("prev", "DENY", "finance-v1", "policy_hash", "ctx", "input_hash", "shadow_hash", 42, "2026-01-01T00:00:00Z");
+        let h2 = compute_chain_hash("prev", "DENY", "finance-v1", "policy_hash", "ctx", "input_hash", "shadow_hash", 42, "2026-01-01T00:00:00Z");
         assert_eq!(h1, h2);
         assert_eq!(h1.len(), 64);
     }
 
     #[test]
     fn compute_chain_hash_different_for_different_inputs() {
-        let h1 = compute_chain_hash(
-            "prev",
-            "DENY",
-            "finance-v1",
-            "policy",
-            "ctx",
-            "input",
-            "shadow",
-            42,
-            "2026-01-01T00:00:00Z",
-        );
-        let h2 = compute_chain_hash(
-            "prev",
-            "ALLOW", // Changed
-            "finance-v1",
-            "policy",
-            "ctx",
-            "input",
-            "shadow",
-            42,
-            "2026-01-01T00:00:00Z",
-        );
+        let h1 = compute_chain_hash("prev", "DENY", "finance-v1", "policy", "ctx", "input", "shadow", 42, "2026-01-01T00:00:00Z");
+        let h2 = compute_chain_hash("prev", "ALLOW", "finance-v1", "policy", "ctx", "input", "shadow", 42, "2026-01-01T00:00:00Z");
         assert_ne!(h1, h2);
     }
 
     #[test]
     fn compute_chain_hash_sensitive_to_seq() {
-        let h1 = compute_chain_hash(
-            "prev",
-            "DENY",
-            "finance-v1",
-            "policy",
-            "ctx",
-            "input",
-            "shadow",
-            42,
-            "2026-01-01T00:00:00Z",
-        );
-        let h2 = compute_chain_hash(
-            "prev",
-            "DENY",
-            "finance-v1",
-            "policy",
-            "ctx",
-            "input",
-            "shadow",
-            43, // Changed
-            "2026-01-01T00:00:00Z",
-        );
+        let h1 = compute_chain_hash("prev", "DENY", "finance-v1", "policy", "ctx", "input", "shadow", 42, "2026-01-01T00:00:00Z");
+        let h2 = compute_chain_hash("prev", "DENY", "finance-v1", "policy", "ctx", "input", "shadow", 43, "2026-01-01T00:00:00Z");
         assert_ne!(h1, h2);
     }
 
     #[test]
     fn compute_chain_hash_sensitive_to_all_fields() {
-        let base = (
-            "prev", "DENY", "policy", "phash", "ctx", "ihash", "shash", 42u64, "ts",
-        );
-        let h_base = compute_chain_hash(
-            base.0, base.1, base.2, base.3, base.4, base.5, base.6, base.7, base.8,
-        );
-
-        // Change each field and verify hash changes
+        let base = ("prev", "DENY", "policy", "phash", "ctx", "ihash", "shash", 42u64, "ts");
+        let h_base = compute_chain_hash(base.0, base.1, base.2, base.3, base.4, base.5, base.6, base.7, base.8);
         let field_tests = [
-            (
-                "prev",
-                compute_chain_hash(
-                    "X", base.1, base.2, base.3, base.4, base.5, base.6, base.7, base.8,
-                ),
-            ),
-            (
-                "decision",
-                compute_chain_hash(
-                    base.0, "X", base.2, base.3, base.4, base.5, base.6, base.7, base.8,
-                ),
-            ),
-            (
-                "policy",
-                compute_chain_hash(
-                    base.0, base.1, "X", base.3, base.4, base.5, base.6, base.7, base.8,
-                ),
-            ),
-            (
-                "phash",
-                compute_chain_hash(
-                    base.0, base.1, base.2, "X", base.4, base.5, base.6, base.7, base.8,
-                ),
-            ),
-            (
-                "ctx",
-                compute_chain_hash(
-                    base.0, base.1, base.2, base.3, "X", base.5, base.6, base.7, base.8,
-                ),
-            ),
-            (
-                "ihash",
-                compute_chain_hash(
-                    base.0, base.1, base.2, base.3, base.4, "X", base.6, base.7, base.8,
-                ),
-            ),
-            (
-                "shash",
-                compute_chain_hash(
-                    base.0, base.1, base.2, base.3, base.4, base.5, "X", base.7, base.8,
-                ),
-            ),
-            (
-                "seq",
-                compute_chain_hash(
-                    base.0, base.1, base.2, base.3, base.4, base.5, base.6, 999, base.8,
-                ),
-            ),
-            (
-                "ts",
-                compute_chain_hash(
-                    base.0, base.1, base.2, base.3, base.4, base.5, base.6, base.7, "X",
-                ),
-            ),
+            ("prev", compute_chain_hash("X", base.1, base.2, base.3, base.4, base.5, base.6, base.7, base.8)),
+            ("decision", compute_chain_hash(base.0, "X", base.2, base.3, base.4, base.5, base.6, base.7, base.8)),
+            ("policy", compute_chain_hash(base.0, base.1, "X", base.3, base.4, base.5, base.6, base.7, base.8)),
+            ("phash", compute_chain_hash(base.0, base.1, base.2, "X", base.4, base.5, base.6, base.7, base.8)),
+            ("ctx", compute_chain_hash(base.0, base.1, base.2, base.3, "X", base.5, base.6, base.7, base.8)),
+            ("ihash", compute_chain_hash(base.0, base.1, base.2, base.3, base.4, "X", base.6, base.7, base.8)),
+            ("shash", compute_chain_hash(base.0, base.1, base.2, base.3, base.4, base.5, "X", base.7, base.8)),
+            ("seq", compute_chain_hash(base.0, base.1, base.2, base.3, base.4, base.5, base.6, 999, base.8)),
+            ("ts", compute_chain_hash(base.0, base.1, base.2, base.3, base.4, base.5, base.6, base.7, "X")),
         ];
-
         for (field_name, changed_hash) in &field_tests {
-            assert_ne!(
-                h_base, *changed_hash,
-                "Field '{}' should affect hash",
-                field_name
-            );
+            assert_ne!(h_base, *changed_hash, "Field '{}' should affect hash", field_name);
         }
     }
 
@@ -456,7 +325,33 @@ mod tests {
         assert_eq!(h.len(), 64);
     }
 
-    // Property-based tests for chain
+    #[test]
+    fn production_hash_binds_request_id() {
+        let e = entry(0, &genesis_hash(), "ALLOW");
+        let mut mutated = e.clone();
+        mutated.request_id = Some("different".into());
+        assert_ne!(compute_chain_hash_for_entry(&e).unwrap(), compute_chain_hash_for_entry(&mutated).unwrap());
+    }
+
+    #[test]
+    fn production_hash_binds_schema_audit_id_and_violations() {
+        let e = entry(0, &genesis_hash(), "ALLOW");
+        let base = compute_chain_hash_for_entry(&e).unwrap();
+        let mut schema = e.clone(); schema.schema.push('x');
+        let mut audit = e.clone(); audit.audit_id.push('x');
+        let mut violation = e.clone(); violation.violations[0].rule = "R-999".into();
+        assert_ne!(base, compute_chain_hash_for_entry(&schema).unwrap());
+        assert_ne!(base, compute_chain_hash_for_entry(&audit).unwrap());
+        assert_ne!(base, compute_chain_hash_for_entry(&violation).unwrap());
+    }
+
+    #[test]
+    fn production_hash_rejects_invalid_confidence() {
+        let mut e = entry(0, &genesis_hash(), "ALLOW");
+        e.violations[0].confidence = f32::NAN;
+        assert!(compute_chain_hash_for_entry(&e).is_err());
+    }
+
     use proptest::prelude::*;
 
     proptest! {
@@ -466,17 +361,7 @@ mod tests {
             decision in "(ALLOW|DENY|REVIEW)",
             seq in 0u64..1000000
         ) {
-            let h = compute_chain_hash(
-                &prev,
-                &decision,
-                "policy",
-                "phash",
-                "ctx",
-                "ihash",
-                "shash",
-                seq,
-                "timestamp",
-            );
+            let h = compute_chain_hash(&prev, &decision, "policy", "phash", "ctx", "ihash", "shash", seq, "timestamp");
             prop_assert_eq!(h.len(), 64);
             prop_assert!(h.chars().all(|c| c.is_ascii_hexdigit()));
         }

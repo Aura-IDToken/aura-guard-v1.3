@@ -9,7 +9,7 @@ use std::time::Instant;
 use uuid::Uuid;
 
 use crate::api::AppState;
-use crate::chain::compute_chain_hash;
+use crate::chain::compute_chain_hash_for_entry;
 use crate::crypto::sha256_hex;
 use crate::engine::evaluate;
 use crate::models::{AuditEntry, AuditRequest};
@@ -17,15 +17,9 @@ use crate::normalizer::shadow_normalize;
 use crate::policy::CompiledPolicy;
 
 /// Maximum byte length accepted for an inbound `X-Request-ID` value.
-///
-/// Anything longer is silently ignored (we generate a fresh UUIDv4 instead)
-/// to prevent log-injection / unbounded-string attacks.
 pub(crate) const MAX_REQUEST_ID_LEN: usize = 128;
 
 /// Extract a caller-supplied correlation id from `X-Request-ID`.
-///
-/// Returns the header value when it is valid UTF-8 and within
-/// [`MAX_REQUEST_ID_LEN`] bytes; otherwise returns `None`.
 fn extract_request_id(headers: &HeaderMap) -> Option<String> {
     headers
         .get("x-request-id")
@@ -35,9 +29,6 @@ fn extract_request_id(headers: &HeaderMap) -> Option<String> {
 }
 
 /// HTTP handler for `POST /v1/audit`.
-///
-/// On success returns the canonical [`AuditEntry`] (same shape as the on-disk
-/// log line). On policy / log failures returns `400` or `503` respectively.
 pub async fn handle_audit(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -45,15 +36,9 @@ pub async fn handle_audit(
 ) -> Result<Json<AuditEntry>, (StatusCode, String)> {
     let start = Instant::now();
 
-    // --- Correlation ids -------------------------------------------------
-    // `request_id` is caller-supplied for cross-service tracing (e.g. from an
-    // upstream API gateway).  `audit_id` is always server-generated and serves
-    // as the immutable identity of *this* audit decision.
     let request_id = extract_request_id(&headers);
     let audit_id = Uuid::new_v4().to_string();
 
-    // Attach both ids to the current tracing span so log lines emitted
-    // within this handler carry them.
     tracing::Span::current().record("audit_id", audit_id.as_str());
     if let Some(rid) = &request_id {
         tracing::Span::current().record("request_id", rid.as_str());
@@ -78,7 +63,6 @@ pub async fn handle_audit(
         .clone()
         .unwrap_or_else(|| state.config.default_policy_set.clone());
 
-    // Resolve policy from the pre-warmed cache only — no lazy loads.
     let policy = resolve_policy(&state, &policy_set).map_err(|e| {
         tracing::warn!(
             error = %e,
@@ -91,16 +75,12 @@ pub async fn handle_audit(
             "aura_guard_requests_total",
             "status" => "400",
             "decision" => "none",
-            // Fixed label value: `policy_set` is caller-supplied here, and
-            // using it verbatim would allow unbounded metric label
-            // cardinality. The requested value is preserved in the log line.
             "policy_set" => "unknown",
         )
         .increment(1);
         (StatusCode::BAD_REQUEST, e)
     })?;
 
-    // Build canonical input + shadow.
     let original = format!(
         "{} {} {}",
         req.context, req.payload.prompt, req.payload.response
@@ -109,26 +89,14 @@ pub async fn handle_audit(
     let input_hash = sha256_hex(&original);
     let shadow_hash = sha256_hex(&shadow);
 
-    // Evaluate.
     let (decision, violations) = evaluate(&shadow, &req.context, &policy.rules);
 
-    // Chain construction.
+    // Construct the complete evidence object first. The production hash is
+    // then derived from this object, excluding only its output `chain_hash`.
     let seq = state.log.next_seq();
     let timestamp = Utc::now().to_rfc3339();
     let prev_hash = state.log.current_head();
-    let chain_hash = compute_chain_hash(
-        &prev_hash,
-        &decision,
-        &policy.name,
-        &policy.policy_hash,
-        &req.context,
-        &input_hash,
-        &shadow_hash,
-        seq,
-        &timestamp,
-    );
-
-    let entry = AuditEntry {
+    let mut entry = AuditEntry {
         schema: "aura-guard.audit.v1".into(),
         seq,
         audit_id,
@@ -142,10 +110,23 @@ pub async fn handle_audit(
         shadow_hash,
         violations: violations.clone(),
         prev_hash,
-        chain_hash,
+        chain_hash: String::new(),
     };
 
-    // Fail-closed: if the log refuses to write, return 503.
+    entry.chain_hash = compute_chain_hash_for_entry(&entry).map_err(|e| {
+        tracing::error!(
+            error = %e,
+            audit_id = %entry.audit_id,
+            request_id = ?entry.request_id,
+            seq = entry.seq,
+            "canonical evidence serialization failed — fail-closed",
+        );
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("cannot canonicalize audit evidence: {e}"),
+        )
+    })?;
+
     state.log.append(&entry).map_err(|e| {
         tracing::error!(
             error = %e,
@@ -164,9 +145,6 @@ pub async fn handle_audit(
         (StatusCode::SERVICE_UNAVAILABLE, e.to_string())
     })?;
 
-    // Notify the segment sealer (fail-open: a sealer error is logged but
-    // does not poison the audit response — the entry itself is already
-    // durably committed and the chain remains verifiable).
     if let Some(sealer) = &state.sealer {
         match sealer.observe(&entry) {
             Ok(crate::sealer::SealOutcome::Sealed {
@@ -187,7 +165,6 @@ pub async fn handle_audit(
         }
     }
 
-    // --- Metrics ---------------------------------------------------------
     let elapsed_secs = start.elapsed().as_secs_f64();
 
     metrics::counter!(
@@ -211,12 +188,11 @@ pub async fn handle_audit(
     )
     .record(elapsed_secs);
 
-    // Per-rule violation counters for SLO dashboards / alerting.
     for v in &entry.violations {
         metrics::counter!(
             "aura_guard_policy_violations_total",
-            "rule_id"    => v.rule.clone(),
-            "action"     => v.action.clone(),
+            "rule_id" => v.rule.clone(),
+            "action" => v.action.clone(),
             "policy_set" => policy.name.clone(),
         )
         .increment(1);
@@ -225,12 +201,7 @@ pub async fn handle_audit(
     Ok(Json(entry))
 }
 
-/// Resolve a policy by name. **Cache-only** by design: every policy that
-/// the runtime is allowed to evaluate against must have been pre-loaded and
-/// signature-verified at boot (see `main.rs` bootstrap fail-closed gate).
-/// Refusing to lazy-load eliminates the temporal integrity gap in which a
-/// fresh policy could be added to disk and evaluated against without ever
-/// passing through the boot-time signer gate.
+/// Resolve a policy by name. Cache-only by design.
 fn resolve_policy(state: &AppState, policy_set: &str) -> Result<Arc<CompiledPolicy>, String> {
     state
         .policies
