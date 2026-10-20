@@ -1,4 +1,16 @@
-# Aura-Guard
+# Aura-Guard v1.3
+
+> **Repository role:** operational audit middleware and evidence-record tooling.
+
+Aura-Guard implements middleware and audit-record mechanisms for the inputs, policies, formats, and execution context supported by a specific source revision. Claims about determinism, chain integrity, signature validation, privacy, or fail-closed behavior must link to the relevant implementation, threat model, tests, and exact verification scope.
+
+An intact hash chain or valid signature can support an integrity/authenticity claim within its cryptographic assumptions; it does not by itself establish the truth or completeness of an event, the civil identity or authority of a signer, or the normative validity of a policy.
+
+This repository consumes policy/contract inputs; it is not the authority that ratifies protocol semantics. Operational evidence must identify the commit, configuration, policy bytes, trust anchors, and verifier version.
+
+> **Scope boundary:** audit middleware is not a substitute for protocol governance, independent conformance, or production-readiness assessment.
+
+> **Evidence note:** the badges and feature descriptions below are repository statements; verify each against the applicable source revision, workflow, configuration, and test record before treating it as established.
 
 [![CI](https://github.com/AuraIDToken/aura-guard-v1.3/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/AuraIDToken/aura-guard-v1.3/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -13,6 +25,7 @@ control plane, no telemetry in the deterministic core.
 ```
 input + signed policy  →  decision + chain_hash  →  append-only JSONL
 ```
+
 
 ---
 
